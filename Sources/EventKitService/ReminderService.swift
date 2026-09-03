@@ -1,6 +1,7 @@
 import EventKit
 import Foundation
 import Logging
+import CoreLocation
 
 // MARK: - Reminder Service Protocol
 
@@ -40,9 +41,6 @@ public protocol ReminderServiceProtocol: Sendable {
     /// Mark a reminder as done
     func markDone(id: String) async throws -> ReminderModel
 
-    /// Search reminders by title
-    func searchReminders(query: String, includeDone: Bool) async throws -> [ReminderModel]
-
     /// Move a reminder to a different list
     func moveReminder(id: String, toListId: String) async throws -> ReminderModel
 }
@@ -50,10 +48,9 @@ public protocol ReminderServiceProtocol: Sendable {
 // MARK: - Reminder Service Implementation
 
 /// Service for interacting with Apple Reminders via EventKit
-public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable {
+public actor ReminderService: ReminderServiceProtocol {
     private let eventStore: EKEventStore
     private let logger: Logger
-    private let queue = DispatchQueue(label: "com.eventkit.mcp.reminder-service")
     private let allowedListIds: Set<String>?
 
     public init(
@@ -83,18 +80,15 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
     public func requestAccess() async throws -> Bool {
         logger.info("Requesting reminders access")
 
-        if #available(macOS 14.0, *) {
+        switch EKEventStore.authorizationStatus(for: .reminder) {
+        case .fullAccess:
+            return true
+        case .notDetermined:
             return try await eventStore.requestFullAccessToReminders()
-        } else {
-            return try await withCheckedThrowingContinuation { continuation in
-                eventStore.requestAccess(to: .reminder) { granted, error in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume(returning: granted)
-                    }
-                }
-            }
+        case .denied, .restricted, .writeOnly:
+            throw ReminderServiceError.accessDenied
+        @unknown default:
+            throw ReminderServiceError.accessDenied
         }
     }
 
@@ -169,11 +163,14 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
             calendars = allowedCalendars()
         }
 
-        let predicate = eventStore.predicateForReminders(in: calendars)
-        let reminders = try await fetchReminders(predicate: predicate)
-
-        let filtered = includeDone ? reminders : reminders.filter { !$0.isCompleted }
-        return filtered.map { mapReminderToModel($0) }
+        let predicate = includeDone
+            ? eventStore.predicateForReminders(in: calendars)
+            : eventStore.predicateForIncompleteReminders(
+                withDueDateStarting: nil,
+                ending: nil,
+                calendars: calendars
+            )
+        return try await fetchReminderModels(predicate: predicate)
     }
 
     public func getReminder(id: String) async throws -> ReminderModel? {
@@ -184,7 +181,7 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
         guard isListAllowed(id: item.calendar.calendarIdentifier) else {
             throw ReminderServiceError.listAccessDenied(item.calendar.calendarIdentifier)
         }
-        return mapReminderToModel(item)
+        return Self.mapReminderToModel(item)
     }
 
     public func createReminder(_ request: CreateReminderRequest) async throws -> ReminderModel {
@@ -214,34 +211,20 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
 
         // Set due date
         if let dueDate = request.dueDate {
-            if request.isAllDay {
-                // Date-only: exclude hour/minute so they remain nil in EventKit
-                reminder.dueDateComponents = Calendar.current.dateComponents(
-                    [.year, .month, .day],
-                    from: dueDate
-                )
-            } else {
-                // Specific time: include hour/minute
-                reminder.dueDateComponents = Calendar.current.dateComponents(
-                    [.year, .month, .day, .hour, .minute],
-                    from: dueDate
-                )
-            }
+            reminder.dueDateComponents = try dateComponents(
+                from: dueDate,
+                allDay: request.isAllDay,
+                timeZoneIdentifier: request.dueTimeZone
+            )
         }
 
         // Set start date
         if let startDate = request.startDate {
-            if request.isStartAllDay {
-                reminder.startDateComponents = Calendar.current.dateComponents(
-                    [.year, .month, .day],
-                    from: startDate
-                )
-            } else {
-                reminder.startDateComponents = Calendar.current.dateComponents(
-                    [.year, .month, .day, .hour, .minute],
-                    from: startDate
-                )
-            }
+            reminder.startDateComponents = try dateComponents(
+                from: startDate,
+                allDay: request.isStartAllDay,
+                timeZoneIdentifier: request.startTimeZone
+            )
         }
 
         // Set priority
@@ -255,8 +238,8 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
         }
 
         // Set URL
-        if let urlString = request.url, let url = URL(string: urlString) {
-            reminder.url = url
+        if let urlString = request.url {
+            reminder.url = try validatedURL(urlString)
         }
 
         // Set recurrence rule
@@ -266,17 +249,15 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
         }
 
         // Set alarms
-        if let alarmOffsets = request.alarms {
-            for offset in alarmOffsets {
-                let alarm = EKAlarm(relativeOffset: TimeInterval(-offset * 60))
-                reminder.addAlarm(alarm)
-            }
+        if let alarms = request.alarms {
+            try validateAlarmReferences(alarms, hasStartDate: reminder.startDateComponents != nil)
+            for alarm in try alarms.map(makeAlarm) { reminder.addAlarm(alarm) }
         }
 
         try eventStore.save(reminder, commit: true)
         logger.info("Created reminder", metadata: ["title": "\(request.title)"])
 
-        return mapReminderToModel(reminder)
+        return Self.mapReminderToModel(reminder)
     }
 
     public func updateReminder(_ request: UpdateReminderRequest) async throws -> ReminderModel {
@@ -293,7 +274,9 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
             reminder.title = title
         }
 
-        if let notes = request.notes {
+        if request.removeNotes {
+            reminder.notes = nil
+        } else if let notes = request.notes {
             reminder.notes = notes
         }
 
@@ -305,20 +288,16 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
         }
 
         // Handle due date and isAllDay changes
-        if let dueDate = request.dueDate {
+        if request.removeDueDate {
+            reminder.dueDateComponents = nil
+        } else if let dueDate = request.dueDate {
             // New due date provided - use isAllDay from request (defaults to false if nil)
             let allDay = request.isAllDay ?? false
-            if allDay {
-                reminder.dueDateComponents = Calendar.current.dateComponents(
-                    [.year, .month, .day],
-                    from: dueDate
-                )
-            } else {
-                reminder.dueDateComponents = Calendar.current.dateComponents(
-                    [.year, .month, .day, .hour, .minute],
-                    from: dueDate
-                )
-            }
+            reminder.dueDateComponents = try dateComponents(
+                from: dueDate,
+                allDay: allDay,
+                timeZoneIdentifier: request.dueTimeZone
+            )
         } else if let isAllDay = request.isAllDay, let existingComponents = reminder.dueDateComponents {
             // Only isAllDay changed, preserve existing date
             if isAllDay && existingComponents.hour != nil {
@@ -341,17 +320,11 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
             reminder.startDateComponents = nil
         } else if let startDate = request.startDate {
             let allDay = request.isStartAllDay ?? false
-            if allDay {
-                reminder.startDateComponents = Calendar.current.dateComponents(
-                    [.year, .month, .day],
-                    from: startDate
-                )
-            } else {
-                reminder.startDateComponents = Calendar.current.dateComponents(
-                    [.year, .month, .day, .hour, .minute],
-                    from: startDate
-                )
-            }
+            reminder.startDateComponents = try dateComponents(
+                from: startDate,
+                allDay: allDay,
+                timeZoneIdentifier: request.startTimeZone
+            )
         }
 
         if let priority = request.priority {
@@ -369,12 +342,16 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
             reminder.calendar = targetCalendar
         }
 
-        if let location = request.location {
+        if request.removeLocation {
+            reminder.location = nil
+        } else if let location = request.location {
             reminder.location = location
         }
 
-        if let urlString = request.url, let url = URL(string: urlString) {
-            reminder.url = url
+        if request.removeURL {
+            reminder.url = nil
+        } else if let urlString = request.url {
+            reminder.url = try validatedURL(urlString)
         }
 
         // Handle recurrence rule changes
@@ -389,18 +366,16 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
         // Handle alarm changes
         if request.removeAlarms {
             reminder.alarms?.forEach { reminder.removeAlarm($0) }
-        } else if let alarmOffsets = request.alarms {
+        } else if let alarms = request.alarms {
+            try validateAlarmReferences(alarms, hasStartDate: reminder.startDateComponents != nil)
             reminder.alarms?.forEach { reminder.removeAlarm($0) }
-            for offset in alarmOffsets {
-                let alarm = EKAlarm(relativeOffset: TimeInterval(-offset * 60))
-                reminder.addAlarm(alarm)
-            }
+            for alarm in try alarms.map(makeAlarm) { reminder.addAlarm(alarm) }
         }
 
         try eventStore.save(reminder, commit: true)
         logger.info("Updated reminder", metadata: ["id": "\(request.id)"])
 
-        return mapReminderToModel(reminder)
+        return Self.mapReminderToModel(reminder)
     }
 
     @discardableResult
@@ -414,7 +389,7 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
         }
 
         // Capture reminder data before deletion
-        let model = mapReminderToModel(reminder)
+        let model = Self.mapReminderToModel(reminder)
 
         try eventStore.remove(reminder, commit: true)
         logger.info("Deleted reminder", metadata: ["id": "\(id)"])
@@ -427,47 +402,30 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
             throw ReminderServiceError.reminderNotFound(id)
         }
 
+        guard isListAllowed(id: reminder.calendar.calendarIdentifier) else {
+            throw ReminderServiceError.listAccessDenied(reminder.calendar.calendarIdentifier)
+        }
+
         reminder.isCompleted = true
         reminder.completionDate = Date()
 
         try eventStore.save(reminder, commit: true)
         logger.info("Marked reminder done", metadata: ["id": "\(id)"])
 
-        return mapReminderToModel(reminder)
-    }
-
-    public func searchReminders(query: String, includeDone: Bool) async throws -> [ReminderModel] {
-        let calendars = allowedCalendars()
-        let predicate = eventStore.predicateForReminders(in: calendars)
-        let reminders = try await fetchReminders(predicate: predicate)
-
-        let regex: NSRegularExpression
-        do {
-            regex = try NSRegularExpression(pattern: query, options: .caseInsensitive)
-        } catch {
-            throw ReminderServiceError.invalidSearchQuery(query)
-        }
-
-        let filtered = reminders.filter { reminder in
-            let id = reminder.calendarItemIdentifier
-            let idMatch = regex.firstMatch(in: id, range: NSRange(id.startIndex..., in: id)) != nil
-            let titleMatch = reminder.title.map { regex.firstMatch(in: $0, range: NSRange($0.startIndex..., in: $0)) != nil } ?? false
-            let notesMatch = reminder.notes.map { regex.firstMatch(in: $0, range: NSRange($0.startIndex..., in: $0)) != nil } ?? false
-            let matchesQuery = idMatch || titleMatch || notesMatch
-
-            if includeDone {
-                return matchesQuery
-            } else {
-                return matchesQuery && !reminder.isCompleted
-            }
-        }
-
-        return filtered.map { mapReminderToModel($0) }
+        return Self.mapReminderToModel(reminder)
     }
 
     public func moveReminder(id: String, toListId: String) async throws -> ReminderModel {
         guard let reminder = eventStore.calendarItem(withIdentifier: id) as? EKReminder else {
             throw ReminderServiceError.reminderNotFound(id)
+        }
+
+        guard isListAllowed(id: reminder.calendar.calendarIdentifier) else {
+            throw ReminderServiceError.listAccessDenied(reminder.calendar.calendarIdentifier)
+        }
+
+        guard isListAllowed(id: toListId) else {
+            throw ReminderServiceError.listAccessDenied(toListId)
         }
 
         guard let targetCalendar = eventStore.calendar(withIdentifier: toListId) else {
@@ -479,17 +437,15 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
         try eventStore.save(reminder, commit: true)
         logger.info("Moved reminder", metadata: ["id": "\(id)", "toList": "\(toListId)"])
 
-        return mapReminderToModel(reminder)
+        return Self.mapReminderToModel(reminder)
     }
 
     // MARK: - Private Helpers
 
-    private func fetchReminders(predicate: NSPredicate) async throws -> [EKReminder] {
-        try await withCheckedThrowingContinuation { continuation in
+    private func fetchReminderModels(predicate: NSPredicate) async throws -> [ReminderModel] {
+        await withCheckedContinuation { continuation in
             eventStore.fetchReminders(matching: predicate) { reminders in
-                // EKReminder is not Sendable, but we're immediately processing them
-                // on the same thread context within this actor-isolated class
-                nonisolated(unsafe) let result = reminders ?? []
+                let result = (reminders ?? []).map(Self.mapReminderToModel)
                 continuation.resume(returning: result)
             }
         }
@@ -521,12 +477,12 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
         )
     }
 
-    private func mapReminderToModel(_ reminder: EKReminder) -> ReminderModel {
+    private static func mapReminderToModel(_ reminder: EKReminder) -> ReminderModel {
         let dueDate: Date?
         let isAllDay: Bool
 
         if let components = reminder.dueDateComponents {
-            dueDate = Calendar.current.date(from: components)
+            dueDate = calendar(for: components).date(from: components)
             // Date-only if hour component is nil (not just 0)
             isAllDay = components.hour == nil
         } else {
@@ -539,7 +495,7 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
         let isStartAllDay: Bool
 
         if let components = reminder.startDateComponents {
-            startDate = Calendar.current.date(from: components)
+            startDate = calendar(for: components).date(from: components)
             isStartAllDay = components.hour == nil
         } else {
             startDate = nil
@@ -549,16 +505,11 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
         // Convert recurrence rule to RRULE string
         let recurrenceRule: String? = reminder.recurrenceRules?.first.map { RRuleParser.format($0) }
 
-        // Extract alarms as minute offsets (skip location-based alarms)
-        let alarmOffsets: [Int]?
+        let alarmModels: [ReminderAlarmModel]?
         if let ekAlarms = reminder.alarms, !ekAlarms.isEmpty {
-            let offsets = ekAlarms.compactMap { alarm -> Int? in
-                guard alarm.structuredLocation == nil else { return nil }
-                return Int(-alarm.relativeOffset / 60)
-            }.sorted()
-            alarmOffsets = offsets.isEmpty ? nil : offsets
+            alarmModels = ekAlarms.compactMap(mapAlarm)
         } else {
-            alarmOffsets = nil
+            alarmModels = nil
         }
 
         return ReminderModel(
@@ -568,6 +519,7 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
             done: reminder.isCompleted,
             priority: ReminderPriority(eventKitPriority: reminder.priority),
             dueDate: dueDate,
+            dueTimeZone: reminder.dueDateComponents?.timeZone?.identifier,
             isAllDay: isAllDay,
             doneDate: reminder.completionDate,
             listId: reminder.calendar.calendarIdentifier,
@@ -578,9 +530,91 @@ public final class ReminderService: ReminderServiceProtocol, @unchecked Sendable
             url: reminder.url?.absoluteString,
             location: reminder.location,
             startDate: startDate,
+            startTimeZone: reminder.startDateComponents?.timeZone?.identifier,
             isStartAllDay: isStartAllDay,
-            alarms: alarmOffsets
+            alarms: alarmModels
         )
+    }
+
+    private static func calendar(for components: DateComponents) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        if let timeZone = components.timeZone { calendar.timeZone = timeZone }
+        return calendar
+    }
+
+    private func dateComponents(from date: Date, allDay: Bool, timeZoneIdentifier: String?) throws -> DateComponents {
+        var calendar = Calendar(identifier: .gregorian)
+        if let identifier = timeZoneIdentifier {
+            guard let timeZone = TimeZone(identifier: identifier) else {
+                throw ReminderServiceError.invalidTimeZone(identifier)
+            }
+            calendar.timeZone = timeZone
+        }
+        var components = calendar.dateComponents(
+            allDay ? [.year, .month, .day] : [.year, .month, .day, .hour, .minute],
+            from: date
+        )
+        components.timeZone = timeZoneIdentifier == nil ? nil : calendar.timeZone
+        return components
+    }
+
+    private func validatedURL(_ string: String) throws -> URL {
+        guard let url = URL(string: string), let scheme = url.scheme, !scheme.isEmpty else {
+            throw ReminderServiceError.invalidURL(string)
+        }
+        return url
+    }
+
+    private func validateAlarmReferences(_ alarms: [ReminderAlarmModel], hasStartDate: Bool) throws {
+        for alarm in alarms where alarm.kind == .relative {
+            guard hasStartDate else { throw ReminderServiceError.relativeAlarmRequiresStartDate }
+            guard let minutes = alarm.minutesBefore, minutes >= 0 else {
+                throw ReminderServiceError.invalidAlarm
+            }
+        }
+    }
+
+    private func makeAlarm(_ model: ReminderAlarmModel) throws -> EKAlarm {
+        switch model.kind {
+        case .relative:
+            guard let minutes = model.minutesBefore, minutes >= 0 else { throw ReminderServiceError.invalidAlarm }
+            return EKAlarm(relativeOffset: TimeInterval(-minutes * 60))
+        case .absolute:
+            guard let date = model.absoluteDate else { throw ReminderServiceError.invalidAlarm }
+            return EKAlarm(absoluteDate: date)
+        case .location:
+            guard let location = model.structuredLocation, let proximity = model.proximity else {
+                throw ReminderServiceError.invalidAlarm
+            }
+            let structured = EKStructuredLocation(title: location.title)
+            structured.geoLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
+            structured.radius = location.radius
+            let alarm = EKAlarm()
+            alarm.structuredLocation = structured
+            alarm.proximity = proximity == .enter ? .enter : proximity == .leave ? .leave : .none
+            return alarm
+        }
+    }
+
+    private static func mapAlarm(_ alarm: EKAlarm) -> ReminderAlarmModel? {
+        if let structured = alarm.structuredLocation, let coordinate = structured.geoLocation?.coordinate {
+            let proximity: ReminderAlarmModel.Proximity = switch alarm.proximity {
+            case .enter: .enter
+            case .leave: .leave
+            default: .none
+            }
+            return .location(
+                .init(
+                    title: structured.title ?? "",
+                    latitude: coordinate.latitude,
+                    longitude: coordinate.longitude,
+                    radius: structured.radius
+                ),
+                proximity: proximity
+            )
+        }
+        if let date = alarm.absoluteDate { return .absolute(date) }
+        return .relative(minutesBefore: Int(-alarm.relativeOffset / 60))
     }
 
     private func colorFromHex(_ hex: String) -> CGColor? {
@@ -623,7 +657,10 @@ public enum ReminderServiceError: Error, LocalizedError {
     case saveFailed(String)
     case listAccessDenied(String)
     case listCreationBlocked
-    case invalidSearchQuery(String)
+    case invalidURL(String)
+    case invalidTimeZone(String)
+    case invalidAlarm
+    case relativeAlarmRequiresStartDate
 
     public var errorDescription: String? {
         switch self {
@@ -641,8 +678,14 @@ public enum ReminderServiceError: Error, LocalizedError {
             return "Access to reminder list '\(id)' is not allowed"
         case .listCreationBlocked:
             return "Creating new reminder lists is not allowed when --allowed-lists is active"
-        case .invalidSearchQuery(let query):
-            return "Invalid search pattern: '\(query)'"
+        case .invalidURL(let value):
+            return "Invalid URL: '\(value)'"
+        case .invalidTimeZone(let identifier):
+            return "Unknown time zone: '\(identifier)'"
+        case .invalidAlarm:
+            return "Invalid alarm definition"
+        case .relativeAlarmRequiresStartDate:
+            return "Relative alarms require a start date"
         }
     }
 }

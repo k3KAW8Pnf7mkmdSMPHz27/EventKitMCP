@@ -12,7 +12,7 @@ struct EventKitMCPServer: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "eventkit-mcp-server",
         abstract: "MCP server for Apple Reminders via EventKit",
-        version: "1.0.0"
+        version: eventKitServiceVersion
     )
 
     @Flag(name: .shortAndLong, help: "Enable verbose logging")
@@ -77,7 +77,7 @@ struct EventKitMCPServer: AsyncParsableCommand {
         // Create MCP server with official SDK
         let server = Server(
             name: "eventkit-mcp-server",
-            version: "1.0.0",
+            version: eventKitServiceVersion,
             title: "EventKit Reminders",
             capabilities: .init(
                 tools: .init(listChanged: false)
@@ -148,9 +148,10 @@ enum ToolRegistry {
             Tool(
                 name: "query_reminders",
                 title: "Query Reminders",
-                description: "Query reminders by filter or search. Use 'filter' for time-based queries (all/overdue/today/upcoming). Use 'search' for regex matching on id/title/notes—use alternation (id1|id2|id3) to find multiple specific reminders in one call.",
+                description: "Query reminders by list, time filter, and regex search. Supplied constraints are combined. Use 'filter' for all/overdue/today/upcoming and regex alternation (id1|id2|id3) to match multiple IDs in one call.",
                 inputSchema: SchemaHelpers.schemaToValue(QueryRemindersInput.self),
-                annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false)
+                annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false),
+                outputSchema: SchemaHelpers.schemaToValue(QueryRemindersOutput.self)
             ),
 
             // Write reminders (unified create/update/delete)
@@ -159,7 +160,8 @@ enum ToolRegistry {
                 title: "Write Reminders",
                 description: "Create, update, or delete reminders. BATCH MULTIPLE OPERATIONS in one call for efficiency. Use 'upsert' array: items without 'id' create new reminders, items with 'id' update existing. Use 'delete' array for IDs to permanently remove. PREFER marking reminders done (done: true) over deleting—done reminders preserve history and can be reviewed later. Only delete for duplicates, mistakes, or when explicitly requested.",
                 inputSchema: SchemaHelpers.schemaToValue(WriteRemindersInput.self),
-                annotations: .init(destructiveHint: true, idempotentHint: false, openWorldHint: false)
+                annotations: .init(destructiveHint: true, idempotentHint: false, openWorldHint: false),
+                outputSchema: SchemaHelpers.schemaToValue(WriteRemindersOutput.self)
             ),
 
             // List operations
@@ -168,14 +170,16 @@ enum ToolRegistry {
                 title: "Get Reminder Lists",
                 description: "Get all reminder lists",
                 inputSchema: SchemaHelpers.schemaToValue(EmptyInput.self),
-                annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false)
+                annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false),
+                outputSchema: SchemaHelpers.schemaToValue(GetReminderListsOutput.self)
             ),
             Tool(
                 name: "manage_reminder_list",
                 title: "Manage Reminder List",
                 description: "Create or delete reminder lists. Use action='create' with title (and optional color), or action='delete' with id.",
                 inputSchema: SchemaHelpers.schemaToValue(ManageReminderListInput.self),
-                annotations: .init(destructiveHint: true, idempotentHint: false, openWorldHint: false)
+                annotations: .init(destructiveHint: true, idempotentHint: false, openWorldHint: false),
+                outputSchema: SchemaHelpers.schemaToValue(ManageReminderListOutput.self)
             ),
 
             // Dashboard
@@ -184,7 +188,8 @@ enum ToolRegistry {
                 title: "Overview",
                 description: "Get a concise overview: current date/time with timezone, scheduled vs unscheduled breakdown (with overdue/today/upcoming counts), all lists with counts, high-priority unscheduled items needing attention, overdue and today's reminders with details, and upcoming week summary",
                 inputSchema: SchemaHelpers.schemaToValue(OverviewInput.self),
-                annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false)
+                annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false),
+                outputSchema: SchemaHelpers.schemaToValue(OverviewOutput.self)
             )
         ]
 
@@ -207,15 +212,7 @@ struct SwiftLogNoOpLogHandler: LogHandler {
         set { }
     }
 
-    func log(
-        level: Logger.Level,
-        message: Logger.Message,
-        metadata: Logger.Metadata?,
-        source: String,
-        file: String,
-        function: String,
-        line: UInt
-    ) {
+    func log(event: LogEvent) {
         // Discard all logs
     }
 }

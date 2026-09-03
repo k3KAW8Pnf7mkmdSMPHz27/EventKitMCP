@@ -110,4 +110,57 @@ struct InputValidationTests {
         let result = await manageReminderList(action: "create", title: "Test List")
         result.expectSuccess()
     }
+
+    @Test("Malformed URL is rejected before mutation")
+    func invalidURL() async {
+        let service = MockReminderService()
+        let result = await callTool("write_reminders", arguments: [
+            "upsert": .array([.object([
+                "title": .string("Bad URL"),
+                "url": .string("not a url")
+            ])])
+        ], reminderService: service)
+        result.expectText(containing: "Invalid URL")
+        #expect(service.mockReminders.isEmpty)
+    }
+
+    @Test("Unknown time zone is rejected before mutation")
+    func invalidTimeZone() async {
+        let service = MockReminderService()
+        let result = await callTool("write_reminders", arguments: [
+            "upsert": .array([.object([
+                "title": .string("Bad zone"),
+                "dueDate": .string("2026-09-03T12:00:00Z"),
+                "dueTimeZone": .string("Mars/Olympus")
+            ])])
+        ], reminderService: service)
+        result.expectText(containing: "Unknown time zone")
+        #expect(service.mockReminders.isEmpty)
+    }
+
+    @Test("Invalid and mixed alarm arrays fail atomically")
+    func invalidAlarmArray() async {
+        let service = MockReminderService()
+        let result = await callTool("write_reminders", arguments: [
+            "upsert": .array([.object([
+                "title": .string("Bad alarms"),
+                "startDate": .string("2026-09-03T12:00:00Z"),
+                "alarms": .array([.int(15), .string("thirty")])
+            ])])
+        ], reminderService: service)
+        result.expectText(containing: "Invalid alarms")
+        #expect(service.mockReminders.isEmpty)
+    }
+
+    @Test("Negative alarm offsets are rejected")
+    func negativeAlarm() async {
+        let result = await callTool("write_reminders", arguments: [
+            "upsert": .array([.object([
+                "title": .string("Bad alarm"),
+                "startDate": .string("2026-09-03T12:00:00Z"),
+                "alarms": .array([.int(-1)])
+            ])])
+        ])
+        result.expectText(containing: "non-negative")
+    }
 }

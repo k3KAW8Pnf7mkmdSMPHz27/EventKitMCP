@@ -57,16 +57,31 @@ enum SchemaHelpers {
 
 // MARK: - Query Reminders (unified query tool)
 
+@Schemable
+enum QueryFilter: String, Codable, CaseIterable {
+    case all, overdue, today, upcoming
+}
+
+@Schemable
+enum ReminderPriorityInput: String, Codable, CaseIterable {
+    case none, low, medium, high
+}
+
+@Schemable
+enum ReminderListAction: String, Codable, CaseIterable {
+    case create, delete
+}
+
 /// Input schema for query_reminders tool - unified query interface
 @Schemable
 struct QueryRemindersInput {
     /// Filter: "all" (default), "overdue", "today", "upcoming"
-    var filter: String?
+    var filter: QueryFilter?
     /// Days for "upcoming" filter (default: 7)
     var days: Int?
     /// List ID to filter by
     var listId: String?
-    /// Regex search pattern for id/title/notes
+    /// Regex search pattern for id/title/notes, applied within the selected list and time filter
     var search: String?
     /// Include done reminders (default: false)
     var includeDone: Bool?
@@ -96,10 +111,14 @@ struct UpsertReminderItem {
     var done: Bool?
     /// Due date in ISO 8601 format
     var dueDate: String?
+    /// IANA time-zone identifier for dueDate; omit for a floating date.
+    var dueTimeZone: String?
     /// Start date in ISO 8601 format. Set to null to remove existing start date.
     var startDate: String?
+    /// IANA time-zone identifier for startDate; omit for a floating date.
+    var startTimeZone: String?
     /// Priority: none, low, medium, high
-    var priority: String?
+    var priority: ReminderPriorityInput?
     /// Target list ID (for create or move)
     var listId: String?
     /// Recurrence rule in RRULE format (RFC 5545). Examples: "FREQ=DAILY", "FREQ=WEEKLY;BYDAY=MO,WE,FR", "FREQ=MONTHLY;BYDAY=2TU;COUNT=10". Set to null to remove existing recurrence.
@@ -108,8 +127,24 @@ struct UpsertReminderItem {
     var location: String?
     /// URL to attach to the reminder
     var url: String?
-    /// Alarm offsets in minutes before due date (e.g., [0, 15, 60] = at time, 15min before, 1hr before). Set to null to remove all alarms.
-    var alarms: [Int]?
+    /// Relative, absolute, or location alarms. Relative alarms use the reminder start date. Set to null to remove all alarms.
+    var alarms: [ReminderAlarmInput]?
+}
+
+@Schemable
+struct ReminderAlarmInput {
+    /// Alarm kind: relative, absolute, or location.
+    var kind: String
+    /// Non-negative minutes before startDate for a relative alarm.
+    var minutesBefore: Int?
+    /// ISO 8601 timestamp for an absolute alarm.
+    var absoluteDate: String?
+    /// enter or leave for a location alarm.
+    var proximity: String?
+    var title: String?
+    var latitude: Double?
+    var longitude: Double?
+    var radius: Double?
 }
 
 // MARK: - List Operations
@@ -118,7 +153,7 @@ struct UpsertReminderItem {
 @Schemable
 struct ManageReminderListInput {
     /// Action to perform: "create" or "delete"
-    var action: String
+    var action: ReminderListAction
     /// Title for create action
     var title: String?
     /// Hex color for create action (e.g., "#FF5733")
@@ -138,3 +173,91 @@ struct OverviewInput {}
 /// Input schema for tools with no parameters
 @Schemable
 struct EmptyInput {}
+
+// MARK: - Output contracts
+
+@Schemable
+struct AlarmOutput: Codable {
+    var kind: String
+    var minutesBefore: Int?
+    var absoluteDate: String?
+    var proximity: String?
+    var title: String?
+    var latitude: Double?
+    var longitude: Double?
+    var radius: Double?
+}
+
+@Schemable
+struct ReminderOutput: Codable {
+    var id: String
+    var title: String
+    var notes: String?
+    var done: Bool
+    var priority: String
+    var dueDate: String?
+    var dueTimeZone: String?
+    var isAllDay: Bool
+    var doneDate: String?
+    var listId: String
+    var listName: String
+    var recurrence: String?
+    var url: String?
+    var location: String?
+    var startDate: String?
+    var startTimeZone: String?
+    var isStartAllDay: Bool
+    var alarms: [AlarmOutput]?
+}
+
+@Schemable
+struct FailureOutput: Codable {
+    var id: String
+    var error: String
+}
+
+@Schemable
+struct QueryRemindersOutput: Codable {
+    var count: Int
+    var reminders: [ReminderOutput]
+}
+
+@Schemable
+struct WriteRemindersOutput: Codable {
+    var deleted: [ReminderOutput]
+    var created: [ReminderOutput]
+    var updated: [ReminderOutput]
+    var failures: [FailureOutput]
+}
+
+@Schemable
+struct ReminderListOutput: Codable {
+    var id: String
+    var title: String
+    var color: String?
+    var isSubscribed: Bool
+    var isImmutable: Bool
+    var sourceTitle: String?
+}
+
+@Schemable
+struct GetReminderListsOutput: Codable {
+    var lists: [ReminderListOutput]
+}
+
+@Schemable
+struct ManageReminderListOutput: Codable {
+    var action: String
+    var id: String
+    var list: ReminderListOutput?
+}
+
+@Schemable
+struct OverviewOutput: Codable {
+    var listCount: Int
+    var incompleteCount: Int
+    var overdueCount: Int
+    var todayCount: Int
+    var upcomingCount: Int
+    var attentionCount: Int
+}

@@ -70,6 +70,7 @@ final class MockReminderService: ReminderServiceProtocol, @unchecked Sendable {
             done: false,
             priority: request.priority ?? .none,
             dueDate: request.dueDate,
+            dueTimeZone: request.dueTimeZone,
             isAllDay: request.isAllDay,
             listId: request.listId ?? "default",
             listName: "Default",
@@ -77,6 +78,7 @@ final class MockReminderService: ReminderServiceProtocol, @unchecked Sendable {
             url: request.url,
             location: request.location,
             startDate: request.startDate,
+            startTimeZone: request.startTimeZone,
             isStartAllDay: request.isStartAllDay,
             alarms: request.alarms
         )
@@ -116,7 +118,7 @@ final class MockReminderService: ReminderServiceProtocol, @unchecked Sendable {
         }
 
         // Handle alarms: remove if requested, otherwise update if provided or keep existing
-        let newAlarms: [Int]?
+        let newAlarms: [ReminderAlarmModel]?
         if request.removeAlarms {
             newAlarms = nil
         } else if let alarms = request.alarms {
@@ -124,21 +126,33 @@ final class MockReminderService: ReminderServiceProtocol, @unchecked Sendable {
         } else {
             newAlarms = existing.alarms
         }
+        if newAlarms?.contains(where: { $0.kind == .relative }) == true,
+           newStartDate == nil {
+            throw MockError.invalidAlarm
+        }
+
+        let newNotes = request.removeNotes ? nil : (request.notes ?? existing.notes)
+        let newDueDate = request.removeDueDate ? nil : (request.dueDate ?? existing.dueDate)
+        let newDueTimeZone = request.removeDueDate ? nil : (request.dueTimeZone ?? existing.dueTimeZone)
+        let newLocation = request.removeLocation ? nil : (request.location ?? existing.location)
+        let newURL = request.removeURL ? nil : (request.url ?? existing.url)
 
         let updated = ReminderModel(
             id: existing.id,
             title: request.title ?? existing.title,
-            notes: request.notes ?? existing.notes,
+            notes: newNotes,
             done: request.done ?? existing.done,
             priority: request.priority ?? existing.priority,
-            dueDate: request.dueDate ?? existing.dueDate,
+            dueDate: newDueDate,
+            dueTimeZone: newDueTimeZone,
             isAllDay: request.isAllDay ?? existing.isAllDay,
             listId: request.listId ?? existing.listId,
             listName: existing.listName,
             recurrenceRule: newRecurrence,
-            url: request.url ?? existing.url,
-            location: request.location ?? existing.location,
+            url: newURL,
+            location: newLocation,
             startDate: newStartDate,
+            startTimeZone: request.removeStartDate ? nil : (request.startTimeZone ?? existing.startTimeZone),
             isStartAllDay: newIsStartAllDay,
             alarms: newAlarms
         )
@@ -171,29 +185,19 @@ final class MockReminderService: ReminderServiceProtocol, @unchecked Sendable {
             isAllDay: existing.isAllDay,
             doneDate: Date(),
             listId: existing.listId,
-            listName: existing.listName
+            listName: existing.listName,
+            creationDate: existing.creationDate,
+            lastModifiedDate: existing.lastModifiedDate,
+            recurrenceRule: existing.recurrenceRule,
+            url: existing.url,
+            location: existing.location,
+            startDate: existing.startDate,
+            startTimeZone: existing.startTimeZone,
+            isStartAllDay: existing.isStartAllDay,
+            alarms: existing.alarms
         )
         mockReminders[index] = updated
         return updated
-    }
-
-    func searchReminders(query: String, includeDone: Bool) async throws -> [ReminderModel] {
-        let regex = try NSRegularExpression(pattern: query, options: .caseInsensitive)
-        return mockReminders.filter { reminder in
-            let idMatch = regex.firstMatch(
-                in: reminder.id,
-                range: NSRange(reminder.id.startIndex..., in: reminder.id)
-            ) != nil
-            let titleMatch = regex.firstMatch(
-                in: reminder.title,
-                range: NSRange(reminder.title.startIndex..., in: reminder.title)
-            ) != nil
-            let notesMatch = reminder.notes.map {
-                regex.firstMatch(in: $0, range: NSRange($0.startIndex..., in: $0)) != nil
-            } ?? false
-            let matches = idMatch || titleMatch || notesMatch
-            return includeDone ? matches : (matches && !reminder.done)
-        }
     }
 
     func moveReminder(id: String, toListId: String) async throws -> ReminderModel {
@@ -210,7 +214,16 @@ final class MockReminderService: ReminderServiceProtocol, @unchecked Sendable {
             dueDate: existing.dueDate,
             isAllDay: existing.isAllDay,
             listId: toListId,
-            listName: mockLists.first { $0.id == toListId }?.title ?? "Unknown"
+            listName: mockLists.first { $0.id == toListId }?.title ?? "Unknown",
+            creationDate: existing.creationDate,
+            lastModifiedDate: existing.lastModifiedDate,
+            recurrenceRule: existing.recurrenceRule,
+            url: existing.url,
+            location: existing.location,
+            startDate: existing.startDate,
+            startTimeZone: existing.startTimeZone,
+            isStartAllDay: existing.isStartAllDay,
+            alarms: existing.alarms
         )
         mockReminders[index] = updated
         return updated
@@ -218,5 +231,6 @@ final class MockReminderService: ReminderServiceProtocol, @unchecked Sendable {
 
     enum MockError: Error {
         case notFound
+        case invalidAlarm
     }
 }

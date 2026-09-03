@@ -62,6 +62,9 @@ iOSInjectionProject/
 *~
 .vscode/
 
+# Local toolchain selection
+mise.local.toml
+
 # Build outputs
 bin/
 dist/

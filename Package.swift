@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -20,13 +20,19 @@ let package = Package(
     ],
     dependencies: [
         // Official MCP Swift SDK
-        .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", from: "0.11.0"),
+        .package(
+            url: "https://github.com/modelcontextprotocol/swift-sdk.git",
+            .upToNextMinor(from: "0.12.1")
+        ),
         // Logging
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.6.0"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.14.0"),
         // Argument parsing for CLI
-        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.2"),
         // JSON Schema generation with @Schemable macro
-        .package(url: "https://github.com/ajevans99/swift-json-schema.git", from: "0.11.0")
+        .package(
+            url: "https://github.com/ajevans99/swift-json-schema.git",
+            .upToNextMinor(from: "0.13.1")
+        )
     ],
     targets: [
         // MARK: - Main Executable
@@ -42,7 +48,7 @@ let package = Package(
             ],
             path: "Sources/EventKitMCP",
             swiftSettings: [
-                .unsafeFlags(["-parse-as-library"])
+                .unsafeFlags(["-parse-as-library", "-strict-concurrency=complete", "-warnings-as-errors"])
             ]
         ),
 
@@ -52,23 +58,33 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log")
             ],
-            path: "Sources/EventKitService"
+            path: "Sources/EventKitService",
+            swiftSettings: [
+                .unsafeFlags(["-strict-concurrency=complete", "-warnings-as-errors"])
+            ]
         ),
 
         // MARK: - Tests
         .testTarget(
             name: "EventKitServiceTests",
             dependencies: ["EventKitService"],
-            path: "Tests/EventKitServiceTests"
+            path: "Tests/EventKitServiceTests",
+            swiftSettings: [
+                .unsafeFlags(["-strict-concurrency=complete", "-warnings-as-errors"])
+            ]
         ),
         .testTarget(
             name: "EventKitMCPTests",
             dependencies: [
                 "EventKitMCP",
                 "EventKitService",
-                .product(name: "MCP", package: "swift-sdk")
+                .product(name: "MCP", package: "swift-sdk"),
+                .product(name: "JSONSchema", package: "swift-json-schema")
             ],
-            path: "Tests/EventKitMCPTests"
+            path: "Tests/EventKitMCPTests",
+            swiftSettings: [
+                .unsafeFlags(["-strict-concurrency=complete", "-warnings-as-errors"])
+            ]
         )
     ]
 )
