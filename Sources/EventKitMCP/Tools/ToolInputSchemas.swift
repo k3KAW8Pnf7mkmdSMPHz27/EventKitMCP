@@ -47,6 +47,10 @@ struct QueryRemindersInput {
     var search: String?
     /// Include done reminders (default: false)
     var includeDone: Bool?
+    /// Maximum reminders to return (default: 25, maximum: 100)
+    var limit: Int?
+    /// Number of matching reminders to skip for pagination (default: 0)
+    var offset: Int?
 }
 
 // MARK: - Write Reminders (unified upsert + delete)
@@ -191,6 +195,9 @@ struct FailureOutput: Codable {
 @Schemable
 struct QueryRemindersOutput: Codable {
     var count: Int
+    var totalCount: Int
+    var offset: Int
+    var hasMore: Bool
     var reminders: [ReminderOutput]
 }
 

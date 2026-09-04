@@ -3,6 +3,7 @@ import JSONSchema
 import MCP
 import Testing
 @testable import EventKitMCP
+@testable import EventKitService
 
 @MainActor
 @Suite("Tool schema contract tests")
@@ -11,7 +12,24 @@ struct ToolSchemaContractTests {
     func allSuccessfulResultsValidate() async throws {
         let service = MockReminderService()
         service.mockLists = [TestFixtures.workList]
-        service.mockReminders = [TestFixtures.basicTask]
+        service.mockReminders = [ReminderModel(
+            id: "contract-reminder",
+            title: "Contract reminder",
+            dueDate: TestFixtures.todayNoon,
+            dueTimeZone: "America/Chicago",
+            listId: TestFixtures.workList.id,
+            listName: TestFixtures.workList.title,
+            startDate: TestFixtures.todayNoon,
+            startTimeZone: "America/Chicago",
+            alarms: [
+                .relative(minutesBefore: 15),
+                .absolute(TestFixtures.todayNoon),
+                .location(
+                    .init(title: "Office", latitude: 41.8781, longitude: -87.6298, radius: 100),
+                    proximity: .enter
+                )
+            ]
+        )]
 
         let calls: [(String, [String: Value]?)] = [
             ("query_reminders", nil),
@@ -58,7 +76,9 @@ struct ToolSchemaContractTests {
         let writeJSON = String(decoding: try encoder.encode(write.inputSchema), as: UTF8.self)
         let manageJSON = String(decoding: try encoder.encode(manage.inputSchema), as: UTF8.self)
 
-        for value in ["all", "overdue", "today", "upcoming"] { #expect(queryJSON.contains(value)) }
+        for value in ["all", "overdue", "today", "upcoming", "limit", "offset"] {
+            #expect(queryJSON.contains(value))
+        }
         for field in ["location", "url", "startDate", "startTimeZone", "dueTimeZone", "alarms"] {
             #expect(writeJSON.contains(field))
         }
@@ -77,6 +97,8 @@ struct ToolSchemaContractTests {
         #expect(try validates(.object([
             "filter": .string("upcoming"),
             "days": .int(14),
+            "limit": .int(25),
+            "offset": .int(0),
             "search": .string("release|follow-up")
         ]), against: query.inputSchema))
         #expect(try validates(.object([

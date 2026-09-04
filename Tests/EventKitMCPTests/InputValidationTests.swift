@@ -62,6 +62,17 @@ struct InputValidationTests {
         result.expectError(containing: "Invalid days value")
     }
 
+    @Test("query_reminders rejects limits outside the documented range")
+    func invalidLimits() async {
+        await queryReminders(limit: 0).expectError(containing: "Invalid pagination")
+        await queryReminders(limit: 101).expectError(containing: "Invalid pagination")
+    }
+
+    @Test("query_reminders rejects negative offsets")
+    func invalidOffset() async {
+        await queryReminders(offset: -1).expectError(containing: "Invalid pagination")
+    }
+
     // MARK: - Color Validation Tests
 
     @Test("manage_reminder_list create with valid hex color succeeds")

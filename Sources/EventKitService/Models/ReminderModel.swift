@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Reminder Model
 
 /// A simplified representation of a reminder for MCP transport
-public struct ReminderModel: Codable, Sendable, Identifiable {
+public struct ReminderModel: Sendable, Identifiable {
     public let id: String
     public let title: String
     public let notes: String?
@@ -26,11 +26,6 @@ public struct ReminderModel: Codable, Sendable, Identifiable {
     public let startTimeZone: String?
     public let isStartAllDay: Bool
     public let alarms: [ReminderAlarmModel]?
-
-    /// Convenience property for backward compatibility
-    public var hasRecurrenceRules: Bool {
-        recurrenceRule != nil
-    }
 
     public init(
         id: String,
@@ -80,7 +75,7 @@ public struct ReminderModel: Codable, Sendable, Identifiable {
 // MARK: - Reminder Priority
 
 /// Priority levels for reminders
-public enum ReminderPriority: Int, Codable, Sendable, CaseIterable {
+public enum ReminderPriority: Int, Sendable, CaseIterable {
     case none = 0
     case high = 1
     case medium = 5
@@ -115,7 +110,7 @@ public enum ReminderPriority: Int, Codable, Sendable, CaseIterable {
 // MARK: - Create Reminder Request
 
 /// Parameters for creating a new reminder
-public struct CreateReminderRequest: Codable, Sendable {
+public struct CreateReminderRequest: Sendable {
     public let title: String
     public let notes: String?
     public let listId: String?
@@ -175,11 +170,10 @@ public enum ReminderFieldUpdate<Value: Sendable>: Sendable {
     case set(Value)
 }
 
-extension ReminderFieldUpdate: Codable where Value: Codable {}
 extension ReminderFieldUpdate: Equatable where Value: Equatable {}
 
 /// A date and its EventKit component metadata, updated as one coherent value.
-public struct ReminderDateValue: Codable, Sendable, Equatable {
+public struct ReminderDateValue: Sendable, Equatable {
     public let date: Date
     public let timeZoneIdentifier: String?
     public let isAllDay: Bool
@@ -192,7 +186,7 @@ public struct ReminderDateValue: Codable, Sendable, Equatable {
 }
 
 /// Parameters for updating an existing reminder
-public struct UpdateReminderRequest: Codable, Sendable {
+public struct UpdateReminderRequest: Sendable {
     public let id: String
     public let title: String?
     public let notes: ReminderFieldUpdate<String>

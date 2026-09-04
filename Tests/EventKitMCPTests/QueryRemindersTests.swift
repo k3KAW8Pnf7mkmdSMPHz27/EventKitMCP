@@ -11,6 +11,64 @@ import MCP
 struct QueryRemindersTests {
     let logger = Logger(label: "test")
 
+    @Test("Default limit bounds output and offset retrieves the next page")
+    func paginatesResults() async throws {
+        let service = MockReminderService()
+        service.mockReminders = (0..<30).map {
+            ReminderModel(id: "r\($0)", title: "Task \($0)", listId: "default", listName: "Default")
+        }
+
+        let firstPage = await queryReminders(service: service)
+        guard case .object(let first)? = firstPage.structuredContent,
+              case .array(let firstReminders)? = first["reminders"] else {
+            Issue.record("Expected a structured first page")
+            return
+        }
+        #expect(firstReminders.count == 25)
+        #expect(first["totalCount"]?.intValue == 30)
+        #expect(first["hasMore"]?.boolValue == true)
+
+        let secondPage = await handleToolCall(
+            name: "query_reminders",
+            arguments: ["limit": .int(10), "offset": .int(25)],
+            reminderService: service,
+            logger: logger
+        )
+        guard case .object(let second)? = secondPage.structuredContent,
+              case .array(let secondReminders)? = second["reminders"] else {
+            Issue.record("Expected a structured second page")
+            return
+        }
+        #expect(secondReminders.count == 5)
+        #expect(second["hasMore"]?.boolValue == false)
+    }
+
+    @Test("Upcoming includes the entire final calendar day")
+    func upcomingIncludesFinalDay() async throws {
+        let service = MockReminderService()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let finalDay = try #require(calendar.date(byAdding: .day, value: 7, to: today))
+        let finalAfternoon = try #require(calendar.date(byAdding: .hour, value: 18, to: finalDay))
+        service.mockReminders = [
+            ReminderModel(
+                id: "last-day",
+                title: "Last-day afternoon",
+                dueDate: finalAfternoon,
+                listId: "default",
+                listName: "Default"
+            )
+        ]
+
+        let result = await handleToolCall(
+            name: "query_reminders",
+            arguments: ["filter": .string("upcoming"), "days": .int(7)],
+            reminderService: service,
+            logger: logger
+        )
+        result.expectText(containing: "Last-day afternoon")
+    }
+
     @Test("Structured query preserves time zones and every alarm kind")
     func structuredTimeZonesAndAlarms() async throws {
         let service = MockReminderService()

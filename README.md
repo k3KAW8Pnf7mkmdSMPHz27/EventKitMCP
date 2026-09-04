@@ -105,7 +105,7 @@ already-authorized Reminders tool surface.
 
 | Tool | Description |
 |------|-------------|
-| `query_reminders` | Query reminders by list, filter (all/overdue/today/upcoming), and regex search; supplied constraints are combined |
+| `query_reminders` | Query reminders by list, filter (all/overdue/today/upcoming), and regex search; supplied constraints are combined and results are paginated |
 | `write_reminders` | Create, update, or delete reminders. Uses `upsert` array (no id = create, with id = update) and `delete` array for IDs to remove |
 | `get_reminder_lists` | Get all reminder lists |
 | `manage_reminder_list` | Create or delete reminder lists (action='create' with title, or action='delete' with id) |
@@ -125,6 +125,9 @@ already-authorized Reminders tool surface.
 // Get upcoming reminders (next 14 days)
 { "name": "query_reminders", "arguments": { "filter": "upcoming", "days": 14 } }
 
+// Retrieve up to 25 reminders by default; request subsequent pages with offset
+{ "name": "query_reminders", "arguments": { "limit": 25, "offset": 25 } }
+
 // Search by regex
 { "name": "query_reminders", "arguments": { "search": "grocery|shopping" } }
 
@@ -141,6 +144,9 @@ already-authorized Reminders tool surface.
 // Match one or more IDs with the regex search field
 { "name": "query_reminders", "arguments": { "search": "id1|id2" } }
 ```
+
+Query responses include `count`, `totalCount`, `offset`, and `hasMore` so clients can
+continue without placing the entire reminders database in one model context.
 
 ### Write Reminders (Create/Update/Delete)
 

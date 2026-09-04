@@ -145,65 +145,6 @@ final class MockReminderService: ReminderServiceProtocol {
         return reminder
     }
 
-    func markDone(id: String) async throws -> ReminderModel {
-        guard let index = mockReminders.firstIndex(where: { $0.id == id }) else {
-            throw MockError.notFound
-        }
-        let existing = mockReminders[index]
-        let updated = ReminderModel(
-            id: existing.id,
-            title: existing.title,
-            notes: existing.notes,
-            done: true,
-            priority: existing.priority,
-            dueDate: existing.dueDate,
-            isAllDay: existing.isAllDay,
-            doneDate: Date(),
-            listId: existing.listId,
-            listName: existing.listName,
-            creationDate: existing.creationDate,
-            lastModifiedDate: existing.lastModifiedDate,
-            recurrenceRule: existing.recurrenceRule,
-            url: existing.url,
-            location: existing.location,
-            startDate: existing.startDate,
-            startTimeZone: existing.startTimeZone,
-            isStartAllDay: existing.isStartAllDay,
-            alarms: existing.alarms
-        )
-        mockReminders[index] = updated
-        return updated
-    }
-
-    func moveReminder(id: String, toListId: String) async throws -> ReminderModel {
-        guard let index = mockReminders.firstIndex(where: { $0.id == id }) else {
-            throw MockError.notFound
-        }
-        let existing = mockReminders[index]
-        let updated = ReminderModel(
-            id: existing.id,
-            title: existing.title,
-            notes: existing.notes,
-            done: existing.done,
-            priority: existing.priority,
-            dueDate: existing.dueDate,
-            isAllDay: existing.isAllDay,
-            listId: toListId,
-            listName: mockLists.first { $0.id == toListId }?.title ?? "Unknown",
-            creationDate: existing.creationDate,
-            lastModifiedDate: existing.lastModifiedDate,
-            recurrenceRule: existing.recurrenceRule,
-            url: existing.url,
-            location: existing.location,
-            startDate: existing.startDate,
-            startTimeZone: existing.startTimeZone,
-            isStartAllDay: existing.isStartAllDay,
-            alarms: existing.alarms
-        )
-        mockReminders[index] = updated
-        return updated
-    }
-
     enum MockError: Error {
         case notFound
         case invalidAlarm

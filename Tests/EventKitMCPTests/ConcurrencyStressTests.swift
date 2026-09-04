@@ -69,8 +69,5 @@ private actor ConcurrentReminderService: ReminderServiceProtocol {
     }
     func updateReminder(_ request: UpdateReminderRequest) async throws -> ReminderModel { throw StressError.unsupported }
     func deleteReminder(id: String) async throws -> ReminderModel { throw StressError.unsupported }
-    func markDone(id: String) async throws -> ReminderModel { throw StressError.unsupported }
-    func moveReminder(id: String, toListId: String) async throws -> ReminderModel { throw StressError.unsupported }
-
     enum StressError: Error { case unsupported }
 }

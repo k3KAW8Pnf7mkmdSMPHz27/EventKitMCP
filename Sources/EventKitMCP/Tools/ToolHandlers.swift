@@ -85,11 +85,12 @@ enum ReminderFilters {
     /// Filter to reminders due within the specified number of days
     static func upcoming(_ reminders: [ReminderModel], days: Int, from date: Date = Date()) -> [ReminderModel] {
         let calendar = Calendar.current
-        guard let endOfToday = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: date)),
-              let futureDate = calendar.date(byAdding: .day, value: days, to: date) else { return [] }
+        let today = calendar.startOfDay(for: date)
+        guard let start = calendar.date(byAdding: .day, value: 1, to: today),
+              let end = calendar.date(byAdding: .day, value: days + 1, to: today) else { return [] }
         return reminders.filter { r in
             guard let due = r.dueDate else { return false }
-            return due >= endOfToday && due <= futureDate
+            return due >= start && due < end
         }.sorted { ($0.dueDate ?? date) < ($1.dueDate ?? date) }
     }
 
@@ -117,6 +118,22 @@ enum ReminderFilters {
                         range: NSRange(value.startIndex..., in: value)
                     ) != nil
                 }
+        }
+    }
+
+    static func ordered(_ reminders: [ReminderModel]) -> [ReminderModel] {
+        reminders.sorted { lhs, rhs in
+            switch (lhs.dueDate, rhs.dueDate) {
+            case let (left?, right?) where left != right:
+                return left < right
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            default:
+                let titleOrder = lhs.title.caseInsensitiveCompare(rhs.title)
+                return titleOrder == .orderedSame ? lhs.id < rhs.id : titleOrder == .orderedAscending
+            }
         }
     }
 }
@@ -281,6 +298,8 @@ private func handleQueryReminders(
     let listId = arguments?["listId"]?.stringValue
     let filter = try requireFilter(arguments?["filter"]?.stringValue)
     let days = try requireDays(arguments?["days"])
+    let limit = try requireLimit(arguments?["limit"])
+    let offset = try requireOffset(arguments?["offset"])
 
     let reminders = try await reminderService.getReminders(
         listId: listId,
@@ -301,9 +320,9 @@ private func handleQueryReminders(
         timeFilteredReminders = reminders
     }
 
-    let matchingReminders = try search.map {
+    let matchingReminders = ReminderFilters.ordered(try search.map {
         try ReminderFilters.matching(timeFilteredReminders, pattern: $0)
-    } ?? timeFilteredReminders
+    } ?? timeFilteredReminders)
 
     if matchingReminders.isEmpty {
         var hint: String
@@ -336,21 +355,37 @@ private func handleQueryReminders(
         }
         return try .success(
             hint,
-            structuredContent: QueryRemindersOutput(count: 0, reminders: [])
+            structuredContent: QueryRemindersOutput(
+                count: 0,
+                totalCount: 0,
+                offset: offset,
+                hasMore: false,
+                reminders: []
+            )
         )
     }
 
-    let text = if search == nil {
-        formatReminders(matchingReminders)
+    let page = Array(matchingReminders.dropFirst(offset).prefix(limit))
+    let hasMore = offset + page.count < matchingReminders.count
+    let pageSummary = "Showing \(page.count) of \(matchingReminders.count) matching reminder(s) from offset \(offset)."
+    let text = if page.isEmpty {
+        "No reminders at offset \(offset). \(matchingReminders.count) reminder(s) match; use a smaller offset."
+    } else if search == nil && !hasMore && offset == 0 {
+        formatReminders(page)
+    } else if search != nil {
+        "Found \(matchingReminders.count) reminder(s). \(pageSummary)\n\(formatReminders(page))"
     } else {
-        "Found \(matchingReminders.count) reminder(s):\n\(formatReminders(matchingReminders))"
+        "\(pageSummary)\n\(formatReminders(page))"
     }
 
     return try .success(
         text,
         structuredContent: QueryRemindersOutput(
-            count: matchingReminders.count,
-            reminders: matchingReminders.map(\.output)
+            count: page.count,
+            totalCount: matchingReminders.count,
+            offset: offset,
+            hasMore: hasMore,
+            reminders: page.map(\.output)
         )
     )
 }
@@ -722,6 +757,7 @@ enum ParseError: Error, LocalizedError {
     case invalidTimeZone(String)
     case invalidAlarms(String)
     case invalidStringValue(String)
+    case invalidPagination(String)
 
     var errorDescription: String? {
         switch self {
@@ -747,6 +783,8 @@ enum ParseError: Error, LocalizedError {
             return "Invalid alarms: \(reason)"
         case .invalidStringValue(let field):
             return "Invalid \(field): expected a string or null"
+        case .invalidPagination(let reason):
+            return "Invalid pagination: \(reason)"
         }
     }
 }
@@ -860,6 +898,22 @@ private func requireDays(_ value: Value?) throws -> Int {
         throw ParseError.invalidDaysValue(description)
     }
     return days
+}
+
+private func requireLimit(_ value: Value?) throws -> Int {
+    guard let value else { return 25 }
+    guard let limit = value.intValue, (1...100).contains(limit) else {
+        throw ParseError.invalidPagination("limit must be an integer from 1 through 100")
+    }
+    return limit
+}
+
+private func requireOffset(_ value: Value?) throws -> Int {
+    guard let value else { return 0 }
+    guard let offset = value.intValue, offset >= 0 else {
+        throw ParseError.invalidPagination("offset must be a non-negative integer")
+    }
+    return offset
 }
 
 /// Parse color with explicit error when format is invalid

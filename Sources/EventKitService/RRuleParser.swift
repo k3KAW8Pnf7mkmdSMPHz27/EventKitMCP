@@ -167,24 +167,25 @@ public enum RRuleParser {
     }
 
     private static func parseUntilDate(_ value: String) -> Date? {
-        // Try YYYYMMDDTHHMMSSZ format
-        let isoFormatter = DateFormatter()
-        isoFormatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
-        isoFormatter.timeZone = TimeZone(identifier: "UTC")
-        if let date = isoFormatter.date(from: value) {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.isLenient = false
+
+        formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        if let date = formatter.date(from: value) {
             return date
         }
 
-        // Try YYYYMMDDTHHMMSS format (local time)
-        isoFormatter.dateFormat = "yyyyMMdd'T'HHmmss"
-        isoFormatter.timeZone = TimeZone.current
-        if let date = isoFormatter.date(from: value) {
+        formatter.dateFormat = "yyyyMMdd'T'HHmmss"
+        formatter.timeZone = TimeZone.current
+        if let date = formatter.date(from: value) {
             return date
         }
 
-        // Try YYYYMMDD format
-        isoFormatter.dateFormat = "yyyyMMdd"
-        if let date = isoFormatter.date(from: value) {
+        formatter.dateFormat = "yyyyMMdd"
+        if let date = formatter.date(from: value) {
             return date
         }
 

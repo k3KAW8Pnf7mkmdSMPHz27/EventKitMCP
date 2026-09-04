@@ -148,7 +148,7 @@ enum ToolRegistry {
             Tool(
                 name: "query_reminders",
                 title: "Query Reminders",
-                description: "Query reminders by list, time filter, and regex search. Supplied constraints are combined. Use 'filter' for all/overdue/today/upcoming and regex alternation (id1|id2|id3) to match multiple IDs in one call.",
+                description: "Query reminders by list, time filter, and regex search. Supplied constraints are combined. Results are paginated: limit defaults to 25 (maximum 100), and offset selects the next page. Use regex alternation (id1|id2|id3) to match multiple IDs in one call.",
                 inputSchema: SchemaHelpers.schemaToValue(QueryRemindersInput.self),
                 annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false),
                 outputSchema: SchemaHelpers.schemaToValue(QueryRemindersOutput.self)

@@ -125,6 +125,8 @@ func queryReminders(
     days: Int? = nil,
     listId: String? = nil,
     includeDone: Bool? = nil,
+    limit: Int? = nil,
+    offset: Int? = nil,
     service: MockReminderService = MockReminderService()
 ) async -> CallTool.Result {
     var args: [String: Value] = [:]
@@ -143,6 +145,12 @@ func queryReminders(
     }
     if let includeDone = includeDone {
         args["includeDone"] = .bool(includeDone)
+    }
+    if let limit {
+        args["limit"] = .int(limit)
+    }
+    if let offset {
+        args["offset"] = .int(offset)
     }
 
     return await callTool(

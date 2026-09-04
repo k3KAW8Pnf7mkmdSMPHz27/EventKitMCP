@@ -38,23 +38,39 @@ public protocol ReminderServiceProtocol: Sendable {
     @discardableResult
     func deleteReminder(id: String) async throws -> ReminderModel
 
-    /// Mark a reminder as done
-    func markDone(id: String) async throws -> ReminderModel
-
-    /// Move a reminder to a different list
-    func moveReminder(id: String, toListId: String) async throws -> ReminderModel
 }
 
 actor EventStoreOperationGate {
-    private var isAcquired = false
-    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private struct Waiter {
+        let id: UUID
+        let continuation: CheckedContinuation<Void, any Error>
+        let timeoutTask: Task<Void, Never>
+    }
 
-    func acquire() async {
+    private var isAcquired = false
+    private var waiters: [Waiter] = []
+
+    func acquire(timeout: Duration) async throws {
+        try Task.checkCancellation()
+
         guard isAcquired else {
             isAcquired = true
             return
         }
-        await withCheckedContinuation { waiters.append($0) }
+
+        let id = UUID()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let timeoutTask = Task { [weak self] in
+                    try? await Task.sleep(for: timeout)
+                    guard !Task.isCancelled else { return }
+                    await self?.failWaiter(id: id, error: ReminderServiceError.operationTimedOut)
+                }
+                waiters.append(.init(id: id, continuation: continuation, timeoutTask: timeoutTask))
+            }
+        } onCancel: {
+            Task { await self.failWaiter(id: id, error: CancellationError()) }
+        }
     }
 
     func release() {
@@ -62,7 +78,16 @@ actor EventStoreOperationGate {
             isAcquired = false
             return
         }
-        waiters.removeFirst().resume()
+        let waiter = waiters.removeFirst()
+        waiter.timeoutTask.cancel()
+        waiter.continuation.resume()
+    }
+
+    private func failWaiter(id: UUID, error: any Error) {
+        guard let index = waiters.firstIndex(where: { $0.id == id }) else { return }
+        let waiter = waiters.remove(at: index)
+        waiter.timeoutTask.cancel()
+        waiter.continuation.resume(throwing: error)
     }
 }
 
@@ -70,18 +95,29 @@ actor EventStoreOperationGate {
 
 /// Service for interacting with Apple Reminders via EventKit
 public actor ReminderService: ReminderServiceProtocol {
+    private struct PendingReminderFetch {
+        let id: UUID
+        let continuation: CheckedContinuation<[ReminderModel], any Error>
+        var request: Any?
+        var timeoutTask: Task<Void, Never>?
+    }
+
     private let eventStore: EKEventStore
     private let logger: Logger
     private let allowedListIds: Set<String>?
     private let operationGate = EventStoreOperationGate()
+    private let operationTimeout: Duration
+    private var pendingReminderFetch: PendingReminderFetch?
 
     public init(
         logger: Logger = Logger(label: "eventkit.reminder-service"),
-        allowedListIds: Set<String>? = nil
+        allowedListIds: Set<String>? = nil,
+        operationTimeout: Duration = .seconds(15)
     ) {
         self.eventStore = EKEventStore()
         self.logger = logger
         self.allowedListIds = allowedListIds
+        self.operationTimeout = operationTimeout
     }
 
     // MARK: - Serialized protocol boundary
@@ -129,20 +165,10 @@ public actor ReminderService: ReminderServiceProtocol {
         try await withExclusiveEventStoreAccess { try await $0.deleteReminderImpl(id: id) }
     }
 
-    public func markDone(id: String) async throws -> ReminderModel {
-        try await withExclusiveEventStoreAccess { try await $0.markDoneImpl(id: id) }
-    }
-
-    public func moveReminder(id: String, toListId: String) async throws -> ReminderModel {
-        try await withExclusiveEventStoreAccess {
-            try await $0.moveReminderImpl(id: id, toListId: toListId)
-        }
-    }
-
     private func withExclusiveEventStoreAccess<Result: Sendable>(
         _ operation: @Sendable (isolated ReminderService) async throws -> Result
     ) async throws -> Result {
-        await operationGate.acquire()
+        try await operationGate.acquire(timeout: operationTimeout)
         do {
             let result = try await operation(self)
             await operationGate.release()
@@ -487,58 +513,57 @@ public actor ReminderService: ReminderServiceProtocol {
         return model
     }
 
-    private func markDoneImpl(id: String) async throws -> ReminderModel {
-        guard let reminder = eventStore.calendarItem(withIdentifier: id) as? EKReminder else {
-            throw ReminderServiceError.reminderNotFound(id)
-        }
-
-        guard isListAllowed(id: reminder.calendar.calendarIdentifier) else {
-            throw ReminderServiceError.listAccessDenied(reminder.calendar.calendarIdentifier)
-        }
-
-        reminder.isCompleted = true
-        reminder.completionDate = Date()
-
-        try eventStore.save(reminder, commit: true)
-        logger.info("Marked reminder done", metadata: ["id": "\(id)"])
-
-        return Self.mapReminderToModel(reminder)
-    }
-
-    private func moveReminderImpl(id: String, toListId: String) async throws -> ReminderModel {
-        guard let reminder = eventStore.calendarItem(withIdentifier: id) as? EKReminder else {
-            throw ReminderServiceError.reminderNotFound(id)
-        }
-
-        guard isListAllowed(id: reminder.calendar.calendarIdentifier) else {
-            throw ReminderServiceError.listAccessDenied(reminder.calendar.calendarIdentifier)
-        }
-
-        guard isListAllowed(id: toListId) else {
-            throw ReminderServiceError.listAccessDenied(toListId)
-        }
-
-        guard let targetCalendar = eventStore.calendar(withIdentifier: toListId) else {
-            throw ReminderServiceError.listNotFound(toListId)
-        }
-
-        reminder.calendar = targetCalendar
-
-        try eventStore.save(reminder, commit: true)
-        logger.info("Moved reminder", metadata: ["id": "\(id)", "toList": "\(toListId)"])
-
-        return Self.mapReminderToModel(reminder)
-    }
-
     // MARK: - Private Helpers
 
     private func fetchReminderModels(predicate: NSPredicate) async throws -> [ReminderModel] {
-        await withCheckedContinuation { continuation in
-            eventStore.fetchReminders(matching: predicate) { reminders in
-                let result = (reminders ?? []).map(Self.mapReminderToModel)
-                continuation.resume(returning: result)
+        let id = UUID()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                pendingReminderFetch = .init(
+                    id: id,
+                    continuation: continuation,
+                    request: nil,
+                    timeoutTask: nil
+                )
+
+                let request = eventStore.fetchReminders(matching: predicate) { [weak self] reminders in
+                    let models = (reminders ?? []).map(Self.mapReminderToModel)
+                    Task { await self?.finishReminderFetch(id: id, result: .success(models)) }
+                }
+                pendingReminderFetch?.request = request
+                pendingReminderFetch?.timeoutTask = Task { [weak self, operationTimeout] in
+                    try? await Task.sleep(for: operationTimeout)
+                    guard !Task.isCancelled else { return }
+                    await self?.finishReminderFetch(
+                        id: id,
+                        result: .failure(ReminderServiceError.operationTimedOut),
+                        cancelRequest: true
+                    )
+                }
+            }
+        } onCancel: {
+            Task {
+                await self.finishReminderFetch(
+                    id: id,
+                    result: .failure(CancellationError()),
+                    cancelRequest: true
+                )
             }
         }
+    }
+
+    private func finishReminderFetch(
+        id: UUID,
+        result: Result<[ReminderModel], any Error>,
+        cancelRequest: Bool = false
+    ) {
+        guard let pending = pendingReminderFetch, pending.id == id else { return }
+        pendingReminderFetch = nil
+        pending.timeoutTask?.cancel()
+        if cancelRequest, let request = pending.request {
+            eventStore.cancelFetchRequest(request)
+        }
+        pending.continuation.resume(with: result)
     }
 
     private func findDefaultSource() -> EKSource? {
@@ -733,18 +758,18 @@ public actor ReminderService: ReminderServiceProtocol {
 // MARK: - Errors
 
 /// Errors that can occur during reminder operations
-public enum ReminderServiceError: Error, LocalizedError {
+public enum ReminderServiceError: Error, LocalizedError, Equatable {
     case accessDenied
     case listNotFound(String)
     case reminderNotFound(String)
     case noValidSource
-    case saveFailed(String)
     case listAccessDenied(String)
     case listCreationBlocked
     case invalidURL(String)
     case invalidTimeZone(String)
     case invalidAlarm
     case relativeAlarmRequiresStartDate
+    case operationTimedOut
 
     public var errorDescription: String? {
         switch self {
@@ -756,8 +781,6 @@ public enum ReminderServiceError: Error, LocalizedError {
             return "Reminder not found: \(id)"
         case .noValidSource:
             return "No valid source found for creating reminder lists"
-        case .saveFailed(let message):
-            return "Failed to save: \(message)"
         case .listAccessDenied(let id):
             return "Access to reminder list '\(id)' is not allowed"
         case .listCreationBlocked:
@@ -770,6 +793,8 @@ public enum ReminderServiceError: Error, LocalizedError {
             return "Invalid alarm definition"
         case .relativeAlarmRequiresStartDate:
             return "Relative alarms require a start date"
+        case .operationTimedOut:
+            return "The EventKit operation timed out"
         }
     }
 }
