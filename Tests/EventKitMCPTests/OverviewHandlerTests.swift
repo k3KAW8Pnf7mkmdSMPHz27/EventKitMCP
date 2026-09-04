@@ -6,6 +6,7 @@ import Testing
 @testable import EventKitService
 import MCP
 
+@MainActor
 @Suite("Overview Handler Tests")
 struct OverviewHandlerTests {
     let logger = Logger(label: "test")

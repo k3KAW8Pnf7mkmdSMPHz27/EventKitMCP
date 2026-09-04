@@ -4,6 +4,7 @@ import MCP
 import Testing
 @testable import EventKitMCP
 
+@MainActor
 @Suite("Tool schema contract tests")
 struct ToolSchemaContractTests {
     @Test("Every tool advertises an output schema and successful output validates")
@@ -64,6 +65,47 @@ struct ToolSchemaContractTests {
         for value in ["none", "low", "medium", "high"] { #expect(writeJSON.contains(value)) }
         #expect(manageJSON.contains("create"))
         #expect(manageJSON.contains("delete"))
+    }
+
+    @Test("Representative inputs validate against their advertised schemas")
+    func representativeInputsValidate() throws {
+        let tools = ToolRegistry.allTools()
+        let query = try #require(tools.first { $0.name == "query_reminders" })
+        let write = try #require(tools.first { $0.name == "write_reminders" })
+        let manage = try #require(tools.first { $0.name == "manage_reminder_list" })
+
+        #expect(try validates(.object([
+            "filter": .string("upcoming"),
+            "days": .int(14),
+            "search": .string("release|follow-up")
+        ]), against: query.inputSchema))
+        #expect(try validates(.object([
+            "upsert": .array([.object([
+                "title": .string("Call the office"),
+                "startDate": .string("2026-09-04T14:00:00-05:00"),
+                "alarms": .array([.object([
+                    "kind": .string("relative"),
+                    "minutesBefore": .int(15)
+                ])])
+            ])])
+        ]), against: write.inputSchema))
+        #expect(try validates(.object([
+            "action": .string("create"),
+            "title": .string("Work")
+        ]), against: manage.inputSchema))
+
+        #expect(try !validates(.object([
+            "upsert": .array([.object([
+                "title": .string("Invalid alarm"),
+                "alarms": .array([.object(["kind": .string("sometimes")])])
+            ])])
+        ]), against: write.inputSchema))
+        #expect(try !validates(.object([
+            "upsert": .array([.object([
+                "title": .string("Legacy alarm shorthand"),
+                "alarms": .array([.int(15)])
+            ])])
+        ]), against: write.inputSchema))
     }
 
     private func validates(_ instance: Value, against schemaValue: Value) throws -> Bool {

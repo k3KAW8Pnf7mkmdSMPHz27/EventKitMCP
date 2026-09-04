@@ -9,48 +9,10 @@ import MCP
 enum SchemaHelpers {
     /// Converts a JSONSchemaBuilder schema to MCP's Value type for tool input schemas
     static func schemaToValue<T: Schemable>(_ type: T.Type) -> Value {
-        let definition = T.schema.definition()
-
-        // Encode the schema definition to JSON, then decode to dictionary
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-
-        guard let jsonData = try? encoder.encode(definition),
-              let jsonObject = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
-            // Fallback to empty object schema if encoding fails
-            return .object(["type": .string("object")])
-        }
-
-        return convertJSONToValue(jsonObject)
-    }
-
-    /// Recursively converts JSONSchema dictionary to MCP Value
-    private static func convertJSONToValue(_ json: [String: Any]) -> Value {
-        var result: [String: Value] = [:]
-
-        for (key, value) in json {
-            result[key] = anyToValue(value)
-        }
-
-        return .object(result)
-    }
-
-    private static func anyToValue(_ value: Any) -> Value {
-        switch value {
-        case let string as String:
-            return .string(string)
-        case let int as Int:
-            return .int(int)
-        case let double as Double:
-            return .double(double)
-        case let bool as Bool:
-            return .bool(bool)
-        case let array as [Any]:
-            return .array(array.map { anyToValue($0) })
-        case let dict as [String: Any]:
-            return convertJSONToValue(dict)
-        default:
-            return .null
+        do {
+            return try Value(T.schema.definition())
+        } catch {
+            preconditionFailure("Failed to encode schema for \(T.self): \(error)")
         }
     }
 }
@@ -134,17 +96,27 @@ struct UpsertReminderItem {
 @Schemable
 struct ReminderAlarmInput {
     /// Alarm kind: relative, absolute, or location.
-    var kind: String
+    var kind: ReminderAlarmKindInput
     /// Non-negative minutes before startDate for a relative alarm.
     var minutesBefore: Int?
     /// ISO 8601 timestamp for an absolute alarm.
     var absoluteDate: String?
     /// enter or leave for a location alarm.
-    var proximity: String?
+    var proximity: ReminderAlarmProximityInput?
     var title: String?
     var latitude: Double?
     var longitude: Double?
     var radius: Double?
+}
+
+@Schemable
+enum ReminderAlarmKindInput: String, Codable, CaseIterable {
+    case relative, absolute, location
+}
+
+@Schemable
+enum ReminderAlarmProximityInput: String, Codable, CaseIterable {
+    case enter, leave
 }
 
 // MARK: - List Operations

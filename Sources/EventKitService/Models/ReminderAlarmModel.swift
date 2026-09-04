@@ -1,7 +1,7 @@
 import Foundation
 
 /// The transport-safe representation of every alarm shape supported by EventKit.
-public struct ReminderAlarmModel: Codable, Sendable, Equatable, ExpressibleByIntegerLiteral {
+public enum ReminderAlarmModel: Sendable, Equatable {
     public enum Kind: String, Codable, Sendable, CaseIterable {
         case relative
         case absolute
@@ -28,40 +28,65 @@ public struct ReminderAlarmModel: Codable, Sendable, Equatable, ExpressibleByInt
         }
     }
 
-    public let kind: Kind
-    /// Positive minutes before the reminder's start date.
-    public let minutesBefore: Int?
-    public let absoluteDate: Date?
-    public let proximity: Proximity?
-    public let structuredLocation: StructuredLocation?
+    case relative(minutesBefore: Int)
+    case absolute(Date)
+    case location(StructuredLocation, proximity: Proximity)
 
-    public init(
-        kind: Kind,
-        minutesBefore: Int? = nil,
-        absoluteDate: Date? = nil,
-        proximity: Proximity? = nil,
-        structuredLocation: StructuredLocation? = nil
-    ) {
-        self.kind = kind
-        self.minutesBefore = minutesBefore
-        self.absoluteDate = absoluteDate
-        self.proximity = proximity
-        self.structuredLocation = structuredLocation
+    public var kind: Kind {
+        switch self {
+        case .relative: .relative
+        case .absolute: .absolute
+        case .location: .location
+        }
+    }
+}
+
+extension ReminderAlarmModel: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case minutesBefore
+        case absoluteDate
+        case proximity
+        case structuredLocation
     }
 
-    public static func relative(minutesBefore: Int) -> Self {
-        .init(kind: .relative, minutesBefore: minutesBefore)
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .kind)
+
+        switch kind {
+        case .relative:
+            let minutes = try container.decode(Int.self, forKey: .minutesBefore)
+            guard minutes >= 0 else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .minutesBefore,
+                    in: container,
+                    debugDescription: "Relative alarm minutes must be non-negative"
+                )
+            }
+            self = .relative(minutesBefore: minutes)
+        case .absolute:
+            self = .absolute(try container.decode(Date.self, forKey: .absoluteDate))
+        case .location:
+            self = .location(
+                try container.decode(StructuredLocation.self, forKey: .structuredLocation),
+                proximity: try container.decode(Proximity.self, forKey: .proximity)
+            )
+        }
     }
 
-    public static func absolute(_ date: Date) -> Self {
-        .init(kind: .absolute, absoluteDate: date)
-    }
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(kind, forKey: .kind)
 
-    public static func location(_ location: StructuredLocation, proximity: Proximity) -> Self {
-        .init(kind: .location, proximity: proximity, structuredLocation: location)
-    }
-
-    public init(integerLiteral value: Int) {
-        self = .relative(minutesBefore: value)
+        switch self {
+        case .relative(let minutesBefore):
+            try container.encode(minutesBefore, forKey: .minutesBefore)
+        case .absolute(let date):
+            try container.encode(date, forKey: .absoluteDate)
+        case .location(let location, let proximity):
+            try container.encode(proximity, forKey: .proximity)
+            try container.encode(location, forKey: .structuredLocation)
+        }
     }
 }

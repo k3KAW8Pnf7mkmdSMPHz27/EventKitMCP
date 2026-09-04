@@ -46,10 +46,7 @@ let package = Package(
                 .product(name: "JSONSchema", package: "swift-json-schema"),
                 .product(name: "JSONSchemaBuilder", package: "swift-json-schema")
             ],
-            path: "Sources/EventKitMCP",
-            swiftSettings: [
-                .unsafeFlags(["-parse-as-library", "-strict-concurrency=complete", "-warnings-as-errors"])
-            ]
+            path: "Sources/EventKitMCP"
         ),
 
         // MARK: - EventKit Service Layer
@@ -58,20 +55,14 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log")
             ],
-            path: "Sources/EventKitService",
-            swiftSettings: [
-                .unsafeFlags(["-strict-concurrency=complete", "-warnings-as-errors"])
-            ]
+            path: "Sources/EventKitService"
         ),
 
         // MARK: - Tests
         .testTarget(
             name: "EventKitServiceTests",
             dependencies: ["EventKitService"],
-            path: "Tests/EventKitServiceTests",
-            swiftSettings: [
-                .unsafeFlags(["-strict-concurrency=complete", "-warnings-as-errors"])
-            ]
+            path: "Tests/EventKitServiceTests"
         ),
         .testTarget(
             name: "EventKitMCPTests",
@@ -81,10 +72,8 @@ let package = Package(
                 .product(name: "MCP", package: "swift-sdk"),
                 .product(name: "JSONSchema", package: "swift-json-schema")
             ],
-            path: "Tests/EventKitMCPTests",
-            swiftSettings: [
-                .unsafeFlags(["-strict-concurrency=complete", "-warnings-as-errors"])
-            ]
+            path: "Tests/EventKitMCPTests"
         )
-    ]
+    ],
+    swiftLanguageModes: [.v6]
 )

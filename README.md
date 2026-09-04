@@ -202,8 +202,7 @@ to `notes`, `dueDate`, `location`, `url`, `startDate`, `recurrence`, and `alarms
 URLs must include a scheme, and time zones must be valid IANA identifiers such as
 `America/Chicago`.
 
-Relative alarm integers remain a compact shorthand for non-negative minutes before
-`startDate`. Structured alarms use one of these shapes:
+Alarms use one of these tagged object shapes:
 
 ```json
 { "kind": "relative", "minutesBefore": 15 }

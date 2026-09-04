@@ -6,6 +6,7 @@ import Testing
 @testable import EventKitService
 import MCP
 
+@MainActor
 @Suite("Query Reminders Handler Tests")
 struct QueryRemindersTests {
     let logger = Logger(label: "test")

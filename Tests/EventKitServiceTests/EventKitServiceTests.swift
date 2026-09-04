@@ -168,20 +168,21 @@ struct EventKitServiceTests {
 
     @Test("Update reminder request")
     func testUpdateReminderRequest() {
+        let dueDate = Date()
         let request = UpdateReminderRequest(
             id: "reminder-id",
             title: "Updated Title",
-            notes: "Updated notes",
+            notes: .set("Updated notes"),
             done: true,
-            dueDate: Date(),
+            dueDate: .set(.init(date: dueDate, isAllDay: false)),
             priority: .low
         )
 
         #expect(request.id == "reminder-id")
         #expect(request.title == "Updated Title")
-        #expect(request.notes == "Updated notes")
+        #expect(request.notes == .set("Updated notes"))
         #expect(request.done == true)
-        #expect(request.dueDate != nil)
+        #expect(request.dueDate == .set(.init(date: dueDate, isAllDay: false)))
         #expect(request.priority == .low)
     }
 
@@ -194,10 +195,33 @@ struct EventKitServiceTests {
 
         #expect(request.id == "reminder-id")
         #expect(request.title == nil)
-        #expect(request.notes == nil)
+        #expect(request.notes == .unchanged)
         #expect(request.done == true)
-        #expect(request.dueDate == nil)
+        #expect(request.dueDate == .unchanged)
         #expect(request.priority == nil)
+    }
+
+    @Test("Alarm models round-trip without invalid payload combinations")
+    func alarmModelRoundTrips() throws {
+        let alarms: [ReminderAlarmModel] = [
+            .relative(minutesBefore: 15),
+            .absolute(Date(timeIntervalSince1970: 1_800_000_000)),
+            .location(
+                .init(title: "Office", latitude: 41.8781, longitude: -87.6298, radius: 100),
+                proximity: .enter
+            )
+        ]
+
+        let data = try JSONEncoder().encode(alarms)
+        #expect(try JSONDecoder().decode([ReminderAlarmModel].self, from: data) == alarms)
+    }
+
+    @Test("Alarm decoding rejects negative relative offsets")
+    func alarmDecodingRejectsNegativeOffsets() {
+        let data = Data(#"{"kind":"relative","minutesBefore":-1}"#.utf8)
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(ReminderAlarmModel.self, from: data)
+        }
     }
 
     // MARK: - Create List Request Tests

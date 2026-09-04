@@ -3,25 +3,6 @@ import Foundation
 import Logging
 import MCP
 
-// MARK: - Tool Services Container
-
-/// Container for all services and configuration needed by tool handlers
-public struct ToolServices: Sendable {
-    public let reminders: ReminderServiceProtocol
-    public let logger: Logger
-    public let readOnly: Bool
-
-    public init(
-        reminders: ReminderServiceProtocol,
-        logger: Logger,
-        readOnly: Bool = false
-    ) {
-        self.reminders = reminders
-        self.logger = logger
-        self.readOnly = readOnly
-    }
-}
-
 // MARK: - Error Response Builders
 
 extension CallTool.Result {
@@ -80,10 +61,8 @@ enum ReminderFilters {
             guard let due = r.dueDate else { return false }
             return due < startOfDay
         }.sorted { a, b in
-            // Primary: priority (high=1 < medium=5 < low=9 < none=0, but we want high first)
-            let priorityOrder: [ReminderPriority: Int] = [.high: 0, .medium: 1, .low: 2, .none: 3]
-            let aPriority = priorityOrder[a.priority] ?? 3
-            let bPriority = priorityOrder[b.priority] ?? 3
+            let aPriority = a.priority.sortRank
+            let bPriority = b.priority.sortRank
             if aPriority != bPriority {
                 return aPriority < bPriority
             }
@@ -96,7 +75,7 @@ enum ReminderFilters {
     static func today(_ reminders: [ReminderModel], relativeTo date: Date = Date()) -> [ReminderModel] {
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: date)
-        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else { return [] }
         return reminders.filter { r in
             guard let due = r.dueDate else { return false }
             return due >= startOfDay && due < endOfDay
@@ -106,8 +85,8 @@ enum ReminderFilters {
     /// Filter to reminders due within the specified number of days
     static func upcoming(_ reminders: [ReminderModel], days: Int, from date: Date = Date()) -> [ReminderModel] {
         let calendar = Calendar.current
-        let endOfToday = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: date))!
-        let futureDate = calendar.date(byAdding: .day, value: days, to: date)!
+        guard let endOfToday = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: date)),
+              let futureDate = calendar.date(byAdding: .day, value: days, to: date) else { return [] }
         return reminders.filter { r in
             guard let due = r.dueDate else { return false }
             return due >= endOfToday && due <= futureDate
@@ -142,23 +121,19 @@ enum ReminderFilters {
     }
 }
 
-// MARK: - Batch Operation Helpers
-
-struct BatchResult<T> {
-    let successes: [(id: String, item: T)]
-    let failures: [(id: String, error: String)]
-
-    var successCount: Int { successes.count }
-    var failureCount: Int { failures.count }
-    var total: Int { successCount + failureCount }
-
-    static var empty: BatchResult<T> { .init(successes: [], failures: []) }
+private extension ReminderPriority {
+    var sortRank: Int {
+        switch self {
+        case .high: 0
+        case .medium: 1
+        case .low: 2
+        case .none: 3
+        }
+    }
 }
 
 private func formatISO8601(_ date: Date) -> String {
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    return formatter.string(from: date)
+    Date.ISO8601FormatStyle(includingFractionalSeconds: true).format(date)
 }
 
 private extension Value {
@@ -198,16 +173,41 @@ private extension ReminderModel {
 
 private extension ReminderAlarmModel {
     var output: AlarmOutput {
-        AlarmOutput(
-            kind: kind.rawValue,
-            minutesBefore: minutesBefore,
-            absoluteDate: absoluteDate.map(formatISO8601),
-            proximity: proximity?.rawValue,
-            title: structuredLocation?.title,
-            latitude: structuredLocation?.latitude,
-            longitude: structuredLocation?.longitude,
-            radius: structuredLocation?.radius
-        )
+        switch self {
+        case .relative(let minutesBefore):
+            AlarmOutput(
+                kind: kind.rawValue,
+                minutesBefore: minutesBefore,
+                absoluteDate: nil,
+                proximity: nil,
+                title: nil,
+                latitude: nil,
+                longitude: nil,
+                radius: nil
+            )
+        case .absolute(let date):
+            AlarmOutput(
+                kind: kind.rawValue,
+                minutesBefore: nil,
+                absoluteDate: formatISO8601(date),
+                proximity: nil,
+                title: nil,
+                latitude: nil,
+                longitude: nil,
+                radius: nil
+            )
+        case .location(let location, let proximity):
+            AlarmOutput(
+                kind: kind.rawValue,
+                minutesBefore: nil,
+                absoluteDate: nil,
+                proximity: proximity.rawValue,
+                title: location.title,
+                latitude: location.latitude,
+                longitude: location.longitude,
+                radius: location.radius
+            )
+        }
     }
 }
 
@@ -221,63 +221,6 @@ private extension ReminderListModel {
             isImmutable: isImmutable,
             sourceTitle: sourceTitle
         )
-    }
-}
-
-enum BatchOperations {
-    /// Execute an operation for each ID, collecting successes and failures
-    static func execute<T>(
-        ids: [String],
-        operation: (String) async throws -> T
-    ) async -> BatchResult<T> {
-        var successes: [(id: String, item: T)] = []
-        var failures: [(id: String, error: String)] = []
-
-        for id in ids {
-            do {
-                let result = try await operation(id)
-                successes.append((id: id, item: result))
-            } catch {
-                failures.append((id: id, error: error.localizedDescription))
-            }
-        }
-
-        return BatchResult(successes: successes, failures: failures)
-    }
-
-    /// Format a batch result for display
-    static func format<T>(
-        _ result: BatchResult<T>,
-        noun: String,
-        pastVerb: String,
-        formatter: ([(id: String, item: T)]) -> String
-    ) -> String {
-        var output = "\(pastVerb.capitalized) \(result.successCount) of \(result.total) \(noun)"
-
-        if !result.successes.isEmpty {
-            output += ":\n\n" + formatter(result.successes)
-        }
-
-        if !result.failures.isEmpty {
-            output += "\n\nFailed:\n" + result.failures.map { "- \($0.id): \($0.error)" }.joined(separator: "\n")
-        }
-
-        return output
-    }
-
-    /// Format a batch result for delete operations (just IDs)
-    static func formatDeleted(_ result: BatchResult<Void>, noun: String) -> String {
-        var output = "Deleted \(result.successCount) of \(result.total) \(noun)"
-
-        if !result.successes.isEmpty {
-            output += ":\n" + result.successes.map { "- \($0.id)" }.joined(separator: "\n")
-        }
-
-        if !result.failures.isEmpty {
-            output += "\n\nFailed:\n" + result.failures.map { "- \($0.id): \($0.error)" }.joined(separator: "\n")
-        }
-
-        return output
     }
 }
 
@@ -348,13 +291,13 @@ private func handleQueryReminders(
     let timeFilteredReminders: [ReminderModel]
 
     switch filter {
-    case "overdue":
+    case .overdue:
         timeFilteredReminders = ReminderFilters.overdue(reminders, before: now)
-    case "today":
+    case .today:
         timeFilteredReminders = ReminderFilters.today(reminders, relativeTo: now)
-    case "upcoming":
+    case .upcoming:
         timeFilteredReminders = ReminderFilters.upcoming(reminders, days: days, from: now)
-    default: // "all"
+    case .all:
         timeFilteredReminders = reminders
     }
 
@@ -365,7 +308,7 @@ private func handleQueryReminders(
     if matchingReminders.isEmpty {
         var hint: String
         if let search {
-            let filterScope = filter == "all" ? "" : " with filter='\(filter)'"
+            let filterScope = filter == .all ? "" : " with filter='\(filter.rawValue)'"
             let listScope = listId == nil ? "" : " in the selected list"
             hint = "No reminders found matching '\(search)'\(filterScope)\(listScope)."
             hint += " Try a broader search term"
@@ -375,13 +318,13 @@ private func handleQueryReminders(
             hint += "."
         } else {
             switch filter {
-            case "overdue":
+            case .overdue:
                 hint = "No overdue reminders found. Try filter='today' or filter='upcoming'."
-            case "today":
+            case .today:
                 hint = "No reminders due today. Try filter='overdue' or filter='upcoming'."
-            case "upcoming":
+            case .upcoming:
                 hint = "No upcoming reminders in the next \(days) days. Try increasing 'days' parameter or use filter='all'."
-            default: // "all"
+            case .all:
                 hint = "No reminders found."
                 if !includeDone {
                     hint += " Set includeDone=true to include done reminders."
@@ -465,42 +408,19 @@ private func handleWriteReminders(
         if let id = id {
             // UPDATE path (has id)
             do {
-                // Parse recurrence: check if key exists to distinguish null from missing
-                let (recurrenceRule, removeRecurrence) = try parseRecurrenceField(itemObj)
-
-                // Parse due date with time info to determine isAllDay
-                let dueDateField = try parseDateField(itemObj, key: "dueDate")
-
-                // Parse start date (3-state)
-                let startDateInfo = try parseStartDateField(itemObj)
-
-                // Parse alarms (3-state)
-                let (alarms, removeAlarms) = try parseAlarmsField(itemObj)
-
                 let request = UpdateReminderRequest(
                     id: id,
                     title: itemObj["title"]?.stringValue,
-                    notes: itemObj["notes"]?.stringValue,
-                    removeNotes: itemObj["notes"]?.isNull == true,
+                    notes: try parseStringField(itemObj, key: "notes"),
                     done: itemObj["done"]?.boolValue,
-                    dueDate: dueDateField.date,
-                    dueTimeZone: try parseTimeZone(itemObj["dueTimeZone"]),
-                    removeDueDate: dueDateField.remove,
-                    isAllDay: dueDateField.isAllDay,
+                    dueDate: try parseDateField(itemObj, key: "dueDate", timeZoneKey: "dueTimeZone"),
                     priority: try requirePriority(itemObj["priority"]?.stringValue),
                     listId: itemObj["listId"]?.stringValue,
-                    recurrenceRule: recurrenceRule,
-                    removeRecurrence: removeRecurrence,
-                    location: itemObj["location"]?.stringValue,
-                    removeLocation: itemObj["location"]?.isNull == true,
-                    url: try parseURL(itemObj["url"]),
-                    removeURL: itemObj["url"]?.isNull == true,
-                    startDate: startDateInfo.date,
-                    startTimeZone: try parseTimeZone(itemObj["startTimeZone"]),
-                    isStartAllDay: startDateInfo.isAllDay,
-                    removeStartDate: startDateInfo.remove,
-                    alarms: alarms,
-                    removeAlarms: removeAlarms
+                    recurrenceRule: try parseRecurrenceField(itemObj),
+                    location: try parseStringField(itemObj, key: "location"),
+                    url: try parseURLField(itemObj),
+                    startDate: try parseDateField(itemObj, key: "startDate", timeZoneKey: "startTimeZone"),
+                    alarms: try parseAlarmsField(itemObj)
                 )
                 let reminder = try await reminderService.updateReminder(request)
                 updatedReminders.append(reminder)
@@ -515,8 +435,8 @@ private func handleWriteReminders(
             }
 
             do {
-                // Parse recurrence (for create, we only need the rule, not removeRecurrence)
-                let (recurrenceRule, _) = try parseRecurrenceField(itemObj)
+                // Parse recurrence; null is equivalent to omission during creation.
+                let recurrenceRule = try parseRecurrenceField(itemObj).setValue
 
                 // Parse due date with time info to determine isAllDay
                 let dateInfo = try requireDateWithTimeInfo(itemObj["dueDate"]?.stringValue)
@@ -525,7 +445,7 @@ private func handleWriteReminders(
                 let startDateInfo = try requireDateWithTimeInfo(itemObj["startDate"]?.stringValue)
 
                 // Parse alarms
-                let (createAlarms, _) = try parseAlarmsField(itemObj)
+                let createAlarms = try parseAlarmsField(itemObj).setValue
                 if createAlarms?.contains(where: { $0.kind == .relative }) == true,
                    startDateInfo == nil {
                     throw ParseError.invalidAlarms("relative alarms require startDate")
@@ -638,12 +558,15 @@ private func handleManageReminderList(
     _ arguments: [String: Value]?,
     reminderService: ReminderServiceProtocol
 ) async throws -> CallTool.Result {
-    guard let action = arguments?["action"]?.stringValue else {
+    guard let actionValue = arguments?["action"]?.stringValue else {
         return .missingParameter("action")
     }
+    guard let action = ReminderListAction(rawValue: actionValue) else {
+        return .invalidParameter("action", value: actionValue, expected: "Use 'create' or 'delete'")
+    }
 
-    switch action.lowercased() {
-    case "create":
+    switch action {
+    case .create:
         guard let title = arguments?["title"]?.stringValue else {
             return .missingParameter("title", for: "create")
         }
@@ -657,7 +580,7 @@ private func handleManageReminderList(
             structuredContent: ManageReminderListOutput(action: "create", id: list.id, list: list.output)
         )
 
-    case "delete":
+    case .delete:
         guard let id = arguments?["id"]?.stringValue else {
             return .missingParameter("id", for: "delete")
         }
@@ -666,9 +589,6 @@ private func handleManageReminderList(
             "Deleted reminder list: \(id)",
             structuredContent: ManageReminderListOutput(action: "delete", id: id, list: nil)
         )
-
-    default:
-        return .invalidParameter("action", value: action, expected: "Use 'create' or 'delete'")
     }
 }
 
@@ -731,15 +651,14 @@ private func formatReminder(_ reminder: ReminderModel) -> String {
 
     if let alarms = reminder.alarms, !alarms.isEmpty {
         let alarmStrs = alarms.map { alarm -> String in
-            switch alarm.kind {
-            case .relative:
-                let minutes = alarm.minutesBefore ?? 0
+            switch alarm {
+            case .relative(let minutes):
                 return minutes == 0 ? "at start" : "\(minutes) min before start"
-            case .absolute:
-                return alarm.absoluteDate.map { "at \(formatDateTime($0))" } ?? "invalid absolute alarm"
-            case .location:
-                let action = alarm.proximity == .leave ? "leaving" : "entering"
-                return "when \(action) \(alarm.structuredLocation?.title ?? "location")"
+            case .absolute(let date):
+                return "at \(formatDateTime(date))"
+            case .location(let location, let proximity):
+                let action = proximity == .leave ? "leaving" : "entering"
+                return "when \(action) \(location.title)"
             }
         }
         lines.append("  Alarms: \(alarmStrs.joined(separator: ", "))")
@@ -782,17 +701,11 @@ private func formatList(_ list: ReminderListModel) -> String {
 }
 
 private func formatDateTime(_ date: Date) -> String {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .medium
-    formatter.timeStyle = .short
-    return formatter.string(from: date)
+    date.formatted(date: .abbreviated, time: .shortened)
 }
 
 private func formatDateOnly(_ date: Date) -> String {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .medium
-    formatter.timeStyle = .none
-    return formatter.string(from: date)
+    date.formatted(date: .abbreviated, time: .omitted)
 }
 
 // MARK: - Parsing Helpers
@@ -808,6 +721,7 @@ enum ParseError: Error, LocalizedError {
     case invalidURL(String)
     case invalidTimeZone(String)
     case invalidAlarms(String)
+    case invalidStringValue(String)
 
     var errorDescription: String? {
         switch self {
@@ -831,6 +745,8 @@ enum ParseError: Error, LocalizedError {
             return "Unknown time zone: '\(value)'"
         case .invalidAlarms(let reason):
             return "Invalid alarms: \(reason)"
+        case .invalidStringValue(let field):
+            return "Invalid \(field): expected a string or null"
         }
     }
 }
@@ -902,14 +818,12 @@ private func requireDate(_ string: String?) throws -> Date? {
 }
 
 private func parsePriority(_ string: String?) -> ReminderPriority? {
-    guard let string = string?.lowercased() else { return nil }
-
-    switch string {
-    case "high": return .high
-    case "medium": return .medium
-    case "low": return .low
-    case "none": return ReminderPriority.none
-    default: return nil
+    guard let input = string.flatMap(ReminderPriorityInput.init(rawValue:)) else { return nil }
+    switch input {
+    case .high: return .high
+    case .medium: return .medium
+    case .low: return .low
+    case .none: return ReminderPriority.none
     }
 }
 
@@ -923,13 +837,12 @@ private func requirePriority(_ string: String?) throws -> ReminderPriority? {
 }
 
 /// Parse filter with explicit error when value is invalid
-private func requireFilter(_ string: String?) throws -> String {
-    let value = string ?? "all"
-    let validFilters = ["all", "overdue", "today", "upcoming"]
-    guard validFilters.contains(value) else {
+private func requireFilter(_ string: String?) throws -> QueryFilter {
+    let value = string ?? QueryFilter.all.rawValue
+    guard let filter = QueryFilter(rawValue: value) else {
         throw ParseError.invalidFilterValue(value)
     }
-    return value
+    return filter
 }
 
 /// Parse days with explicit error when value is invalid
@@ -960,26 +873,22 @@ private func requireColor(_ string: String?) throws -> String? {
 }
 
 /// Parse alarms field from upsert item (3-state: missing=unchanged, null=remove, array=set).
-/// Integer elements remain supported as shorthand for relative alarms.
-private func parseAlarmsField(_ itemObj: [String: Value]) throws -> (alarms: [ReminderAlarmModel]?, remove: Bool) {
+private func parseAlarmsField(
+    _ itemObj: [String: Value]
+) throws -> ReminderFieldUpdate<[ReminderAlarmModel]> {
     guard let value = itemObj["alarms"] else {
-        return (nil, false)
+        return .unchanged
     }
     if case .null = value {
-        return (nil, true)
+        return .clear
     }
     guard let array = value.arrayValue else {
         throw ParseError.invalidAlarms("expected an array or null")
     }
     var alarms: [ReminderAlarmModel] = []
     for (index, element) in array.enumerated() {
-        if let minutes = element.intValue {
-            guard minutes >= 0 else { throw ParseError.invalidAlarms("element \(index) must be non-negative") }
-            alarms.append(.relative(minutesBefore: minutes))
-            continue
-        }
         guard let object = element.objectValue, let kind = object["kind"]?.stringValue else {
-            throw ParseError.invalidAlarms("element \(index) must be an integer or an alarm object")
+            throw ParseError.invalidAlarms("element \(index) must be an alarm object with a kind")
         }
         switch kind {
         case "relative":
@@ -1015,19 +924,36 @@ private func parseAlarmsField(_ itemObj: [String: Value]) throws -> (alarms: [Re
             throw ParseError.invalidAlarms("unknown kind '\(kind)' at element \(index)")
         }
     }
-    return (alarms, false)
+    return .set(alarms)
 }
 
 private func parseDateField(
     _ object: [String: Value],
-    key: String
-) throws -> (date: Date?, isAllDay: Bool?, remove: Bool) {
-    guard let value = object[key] else { return (nil, nil, false) }
-    if value.isNull { return (nil, nil, true) }
+    key: String,
+    timeZoneKey: String
+) throws -> ReminderFieldUpdate<ReminderDateValue> {
+    guard let value = object[key] else { return .unchanged }
+    if value.isNull { return .clear }
     guard let string = value.stringValue, let parsed = parseDateWithTimeInfo(string) else {
         throw ParseError.invalidDateFormat(value.stringValue ?? "(non-string value)")
     }
-    return (parsed.date, !parsed.hasTime, false)
+    return .set(ReminderDateValue(
+        date: parsed.date,
+        timeZoneIdentifier: try parseTimeZone(object[timeZoneKey]),
+        isAllDay: !parsed.hasTime
+    ))
+}
+
+private func parseStringField(
+    _ object: [String: Value],
+    key: String
+) throws -> ReminderFieldUpdate<String> {
+    guard let value = object[key] else { return .unchanged }
+    if value.isNull { return .clear }
+    guard let string = value.stringValue else {
+        throw ParseError.invalidStringValue(key)
+    }
+    return .set(string)
 }
 
 private func parseURL(_ value: Value?) throws -> String? {
@@ -1041,6 +967,13 @@ private func parseURL(_ value: Value?) throws -> String? {
     return string
 }
 
+private func parseURLField(_ object: [String: Value]) throws -> ReminderFieldUpdate<String> {
+    guard let value = object["url"] else { return .unchanged }
+    if value.isNull { return .clear }
+    guard let url = try parseURL(value) else { return .unchanged }
+    return .set(url)
+}
+
 private func parseTimeZone(_ value: Value?) throws -> String? {
     guard let value else { return nil }
     if value.isNull { return nil }
@@ -1050,40 +983,16 @@ private func parseTimeZone(_ value: Value?) throws -> String? {
     return identifier
 }
 
-/// Parse start date field from upsert item (3-state: missing=unchanged, null=remove, string=set)
-private func parseStartDateField(_ itemObj: [String: Value]) throws -> (date: Date?, isAllDay: Bool?, remove: Bool) {
-    guard let value = itemObj["startDate"] else {
-        return (nil, nil, false)
-    }
-    if case .null = value {
-        return (nil, nil, true)
-    }
-    guard let dateString = value.stringValue else {
-        throw ParseError.invalidDateFormat("(non-string value)")
-    }
-    guard let parsed = parseDateWithTimeInfo(dateString) else {
-        throw ParseError.invalidDateFormat(dateString)
-    }
-    return (parsed.date, !parsed.hasTime, false)
-}
-
 /// Parse recurrence field from upsert item
-/// Returns (recurrenceRule, removeRecurrence) tuple
-/// - If key is missing: (nil, false) - leave unchanged
-/// - If key is null: (nil, true) - remove recurrence
-/// - If key is string: (rrule, false) - set/update recurrence
-private func parseRecurrenceField(_ itemObj: [String: Value]) throws -> (String?, Bool) {
-    // Check if key exists at all
+private func parseRecurrenceField(_ itemObj: [String: Value]) throws -> ReminderFieldUpdate<String> {
     guard let value = itemObj["recurrence"] else {
-        return (nil, false)  // Key not present, leave unchanged
+        return .unchanged
     }
 
-    // Check for explicit null
     if case .null = value {
-        return (nil, true)  // Explicit null means remove recurrence
+        return .clear
     }
 
-    // Must be a string
     guard let rrule = value.stringValue else {
         throw ParseError.invalidRRule("(non-string value)", "Recurrence must be an RRULE string")
     }
@@ -1095,7 +1004,14 @@ private func parseRecurrenceField(_ itemObj: [String: Value]) throws -> (String?
         throw ParseError.invalidRRule(rrule, error.localizedDescription)
     }
 
-    return (rrule, false)
+    return .set(rrule)
+}
+
+private extension ReminderFieldUpdate {
+    var setValue: Value? {
+        guard case .set(let value) = self else { return nil }
+        return value
+    }
 }
 
 // MARK: - Overview Handler

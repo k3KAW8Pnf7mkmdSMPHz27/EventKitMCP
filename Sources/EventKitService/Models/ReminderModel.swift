@@ -168,85 +168,69 @@ public struct CreateReminderRequest: Codable, Sendable {
 
 // MARK: - Update Reminder Request
 
+/// A three-state mutation for an optional reminder field.
+public enum ReminderFieldUpdate<Value: Sendable>: Sendable {
+    case unchanged
+    case clear
+    case set(Value)
+}
+
+extension ReminderFieldUpdate: Codable where Value: Codable {}
+extension ReminderFieldUpdate: Equatable where Value: Equatable {}
+
+/// A date and its EventKit component metadata, updated as one coherent value.
+public struct ReminderDateValue: Codable, Sendable, Equatable {
+    public let date: Date
+    public let timeZoneIdentifier: String?
+    public let isAllDay: Bool
+
+    public init(date: Date, timeZoneIdentifier: String? = nil, isAllDay: Bool) {
+        self.date = date
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.isAllDay = isAllDay
+    }
+}
+
 /// Parameters for updating an existing reminder
 public struct UpdateReminderRequest: Codable, Sendable {
     public let id: String
     public let title: String?
-    public let notes: String?
-    public let removeNotes: Bool
+    public let notes: ReminderFieldUpdate<String>
     public let done: Bool?
-    public let dueDate: Date?
-    public let dueTimeZone: String?
-    public let removeDueDate: Bool
-    /// True for date-only, false for specific time, nil to leave unchanged
-    public let isAllDay: Bool?
+    public let dueDate: ReminderFieldUpdate<ReminderDateValue>
     public let priority: ReminderPriority?
     public let listId: String?
-    /// Recurrence rule in RRULE format (RFC 5545). Set to update recurrence.
-    public let recurrenceRule: String?
-    /// When true, removes existing recurrence rule
-    public let removeRecurrence: Bool
-    public let location: String?
-    public let removeLocation: Bool
-    public let url: String?
-    public let removeURL: Bool
-    public let startDate: Date?
-    public let startTimeZone: String?
-    /// True for date-only, false for specific time, nil to leave unchanged
-    public let isStartAllDay: Bool?
-    /// When true, removes existing start date
-    public let removeStartDate: Bool
-    public let alarms: [ReminderAlarmModel]?
-    /// When true, removes all existing alarms
-    public let removeAlarms: Bool
+    public let recurrenceRule: ReminderFieldUpdate<String>
+    public let location: ReminderFieldUpdate<String>
+    public let url: ReminderFieldUpdate<String>
+    public let startDate: ReminderFieldUpdate<ReminderDateValue>
+    public let alarms: ReminderFieldUpdate<[ReminderAlarmModel]>
 
     public init(
         id: String,
         title: String? = nil,
-        notes: String? = nil,
-        removeNotes: Bool = false,
+        notes: ReminderFieldUpdate<String> = .unchanged,
         done: Bool? = nil,
-        dueDate: Date? = nil,
-        dueTimeZone: String? = nil,
-        removeDueDate: Bool = false,
-        isAllDay: Bool? = nil,
+        dueDate: ReminderFieldUpdate<ReminderDateValue> = .unchanged,
         priority: ReminderPriority? = nil,
         listId: String? = nil,
-        recurrenceRule: String? = nil,
-        removeRecurrence: Bool = false,
-        location: String? = nil,
-        removeLocation: Bool = false,
-        url: String? = nil,
-        removeURL: Bool = false,
-        startDate: Date? = nil,
-        startTimeZone: String? = nil,
-        isStartAllDay: Bool? = nil,
-        removeStartDate: Bool = false,
-        alarms: [ReminderAlarmModel]? = nil,
-        removeAlarms: Bool = false
+        recurrenceRule: ReminderFieldUpdate<String> = .unchanged,
+        location: ReminderFieldUpdate<String> = .unchanged,
+        url: ReminderFieldUpdate<String> = .unchanged,
+        startDate: ReminderFieldUpdate<ReminderDateValue> = .unchanged,
+        alarms: ReminderFieldUpdate<[ReminderAlarmModel]> = .unchanged
     ) {
         self.id = id
         self.title = title
         self.notes = notes
-        self.removeNotes = removeNotes
         self.done = done
         self.dueDate = dueDate
-        self.dueTimeZone = dueTimeZone
-        self.removeDueDate = removeDueDate
-        self.isAllDay = isAllDay
         self.priority = priority
         self.listId = listId
         self.recurrenceRule = recurrenceRule
-        self.removeRecurrence = removeRecurrence
         self.location = location
-        self.removeLocation = removeLocation
         self.url = url
-        self.removeURL = removeURL
         self.startDate = startDate
-        self.startTimeZone = startTimeZone
-        self.isStartAllDay = isStartAllDay
-        self.removeStartDate = removeStartDate
         self.alarms = alarms
-        self.removeAlarms = removeAlarms
     }
 }

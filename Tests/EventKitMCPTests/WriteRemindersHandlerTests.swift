@@ -6,6 +6,7 @@ import Testing
 @testable import EventKitService
 import MCP
 
+@MainActor
 @Suite("Write Reminders Handler Tests")
 struct WriteRemindersHandlerTests {
 
@@ -261,7 +262,12 @@ struct WriteRemindersHandlerTests {
                         "title": .string("Meeting"),
                         "dueDate": .string("2026-06-01T10:00:00"),
                         "startDate": .string("2026-06-01T10:00:00"),
-                        "alarms": .array([.int(0), .int(15), .int(60)])
+                        "alarms": .array([0, 15, 60].map { minutes in
+                            .object([
+                                "kind": .string("relative"),
+                                "minutesBefore": .int(minutes)
+                            ])
+                        })
                     ])
                 ])
             ],
@@ -294,7 +300,10 @@ struct WriteRemindersHandlerTests {
                 "upsert": .array([
                     .object([
                         "id": .string("rem-1"),
-                        "alarms": .array([.int(30)])
+                        "alarms": .array([.object([
+                            "kind": .string("relative"),
+                            "minutesBefore": .int(30)
+                        ])])
                     ])
                 ])
             ],

@@ -45,6 +45,27 @@ public protocol ReminderServiceProtocol: Sendable {
     func moveReminder(id: String, toListId: String) async throws -> ReminderModel
 }
 
+actor EventStoreOperationGate {
+    private var isAcquired = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func acquire() async {
+        guard isAcquired else {
+            isAcquired = true
+            return
+        }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func release() {
+        guard !waiters.isEmpty else {
+            isAcquired = false
+            return
+        }
+        waiters.removeFirst().resume()
+    }
+}
+
 // MARK: - Reminder Service Implementation
 
 /// Service for interacting with Apple Reminders via EventKit
@@ -52,6 +73,7 @@ public actor ReminderService: ReminderServiceProtocol {
     private let eventStore: EKEventStore
     private let logger: Logger
     private let allowedListIds: Set<String>?
+    private let operationGate = EventStoreOperationGate()
 
     public init(
         logger: Logger = Logger(label: "eventkit.reminder-service"),
@@ -60,6 +82,75 @@ public actor ReminderService: ReminderServiceProtocol {
         self.eventStore = EKEventStore()
         self.logger = logger
         self.allowedListIds = allowedListIds
+    }
+
+    // MARK: - Serialized protocol boundary
+
+    public func requestAccess() async throws -> Bool {
+        try await withExclusiveEventStoreAccess { try await $0.requestAccessImpl() }
+    }
+
+    public func getLists() async throws -> [ReminderListModel] {
+        try await withExclusiveEventStoreAccess { try await $0.getListsImpl() }
+    }
+
+    public func getList(id: String) async throws -> ReminderListModel? {
+        try await withExclusiveEventStoreAccess { try await $0.getListImpl(id: id) }
+    }
+
+    public func createList(_ request: CreateListRequest) async throws -> ReminderListModel {
+        try await withExclusiveEventStoreAccess { try await $0.createListImpl(request) }
+    }
+
+    public func deleteList(id: String) async throws {
+        try await withExclusiveEventStoreAccess { try await $0.deleteListImpl(id: id) }
+    }
+
+    public func getReminders(listId: String?, includeDone: Bool) async throws -> [ReminderModel] {
+        try await withExclusiveEventStoreAccess {
+            try await $0.getRemindersImpl(listId: listId, includeDone: includeDone)
+        }
+    }
+
+    public func getReminder(id: String) async throws -> ReminderModel? {
+        try await withExclusiveEventStoreAccess { try await $0.getReminderImpl(id: id) }
+    }
+
+    public func createReminder(_ request: CreateReminderRequest) async throws -> ReminderModel {
+        try await withExclusiveEventStoreAccess { try await $0.createReminderImpl(request) }
+    }
+
+    public func updateReminder(_ request: UpdateReminderRequest) async throws -> ReminderModel {
+        try await withExclusiveEventStoreAccess { try await $0.updateReminderImpl(request) }
+    }
+
+    @discardableResult
+    public func deleteReminder(id: String) async throws -> ReminderModel {
+        try await withExclusiveEventStoreAccess { try await $0.deleteReminderImpl(id: id) }
+    }
+
+    public func markDone(id: String) async throws -> ReminderModel {
+        try await withExclusiveEventStoreAccess { try await $0.markDoneImpl(id: id) }
+    }
+
+    public func moveReminder(id: String, toListId: String) async throws -> ReminderModel {
+        try await withExclusiveEventStoreAccess {
+            try await $0.moveReminderImpl(id: id, toListId: toListId)
+        }
+    }
+
+    private func withExclusiveEventStoreAccess<Result: Sendable>(
+        _ operation: @Sendable (isolated ReminderService) async throws -> Result
+    ) async throws -> Result {
+        await operationGate.acquire()
+        do {
+            let result = try await operation(self)
+            await operationGate.release()
+            return result
+        } catch {
+            await operationGate.release()
+            throw error
+        }
     }
 
     // MARK: - Access Control Helpers
@@ -77,7 +168,7 @@ public actor ReminderService: ReminderServiceProtocol {
 
     // MARK: - Access
 
-    public func requestAccess() async throws -> Bool {
+    private func requestAccessImpl() async throws -> Bool {
         logger.info("Requesting reminders access")
 
         switch EKEventStore.authorizationStatus(for: .reminder) {
@@ -94,12 +185,12 @@ public actor ReminderService: ReminderServiceProtocol {
 
     // MARK: - Lists
 
-    public func getLists() async throws -> [ReminderListModel] {
+    private func getListsImpl() async throws -> [ReminderListModel] {
         let calendars = allowedCalendars()
         return calendars.map { mapCalendarToList($0) }
     }
 
-    public func getList(id: String) async throws -> ReminderListModel? {
+    private func getListImpl(id: String) async throws -> ReminderListModel? {
         guard isListAllowed(id: id) else {
             throw ReminderServiceError.listAccessDenied(id)
         }
@@ -109,7 +200,7 @@ public actor ReminderService: ReminderServiceProtocol {
         return mapCalendarToList(calendar)
     }
 
-    public func createList(_ request: CreateListRequest) async throws -> ReminderListModel {
+    private func createListImpl(_ request: CreateListRequest) async throws -> ReminderListModel {
         // Block list creation when allowlist is active
         if allowedListIds != nil {
             throw ReminderServiceError.listCreationBlocked
@@ -134,7 +225,7 @@ public actor ReminderService: ReminderServiceProtocol {
         return mapCalendarToList(calendar)
     }
 
-    public func deleteList(id: String) async throws {
+    private func deleteListImpl(id: String) async throws {
         guard isListAllowed(id: id) else {
             throw ReminderServiceError.listAccessDenied(id)
         }
@@ -148,7 +239,7 @@ public actor ReminderService: ReminderServiceProtocol {
 
     // MARK: - Reminders
 
-    public func getReminders(listId: String?, includeDone: Bool) async throws -> [ReminderModel] {
+    private func getRemindersImpl(listId: String?, includeDone: Bool) async throws -> [ReminderModel] {
         let calendars: [EKCalendar]
 
         if let listId = listId {
@@ -173,7 +264,7 @@ public actor ReminderService: ReminderServiceProtocol {
         return try await fetchReminderModels(predicate: predicate)
     }
 
-    public func getReminder(id: String) async throws -> ReminderModel? {
+    private func getReminderImpl(id: String) async throws -> ReminderModel? {
         guard let item = eventStore.calendarItem(withIdentifier: id) as? EKReminder else {
             return nil
         }
@@ -184,7 +275,7 @@ public actor ReminderService: ReminderServiceProtocol {
         return Self.mapReminderToModel(item)
     }
 
-    public func createReminder(_ request: CreateReminderRequest) async throws -> ReminderModel {
+    private func createReminderImpl(_ request: CreateReminderRequest) async throws -> ReminderModel {
         let reminder = EKReminder(eventStore: eventStore)
         reminder.title = request.title
         reminder.notes = request.notes
@@ -260,7 +351,7 @@ public actor ReminderService: ReminderServiceProtocol {
         return Self.mapReminderToModel(reminder)
     }
 
-    public func updateReminder(_ request: UpdateReminderRequest) async throws -> ReminderModel {
+    private func updateReminderImpl(_ request: UpdateReminderRequest) async throws -> ReminderModel {
         guard let reminder = eventStore.calendarItem(withIdentifier: request.id) as? EKReminder else {
             throw ReminderServiceError.reminderNotFound(request.id)
         }
@@ -274,9 +365,12 @@ public actor ReminderService: ReminderServiceProtocol {
             reminder.title = title
         }
 
-        if request.removeNotes {
+        switch request.notes {
+        case .unchanged:
+            break
+        case .clear:
             reminder.notes = nil
-        } else if let notes = request.notes {
+        case .set(let notes):
             reminder.notes = notes
         }
 
@@ -287,43 +381,29 @@ public actor ReminderService: ReminderServiceProtocol {
             }
         }
 
-        // Handle due date and isAllDay changes
-        if request.removeDueDate {
+        switch request.dueDate {
+        case .unchanged:
+            break
+        case .clear:
             reminder.dueDateComponents = nil
-        } else if let dueDate = request.dueDate {
-            // New due date provided - use isAllDay from request (defaults to false if nil)
-            let allDay = request.isAllDay ?? false
+        case .set(let value):
             reminder.dueDateComponents = try dateComponents(
-                from: dueDate,
-                allDay: allDay,
-                timeZoneIdentifier: request.dueTimeZone
+                from: value.date,
+                allDay: value.isAllDay,
+                timeZoneIdentifier: value.timeZoneIdentifier
             )
-        } else if let isAllDay = request.isAllDay, let existingComponents = reminder.dueDateComponents {
-            // Only isAllDay changed, preserve existing date
-            if isAllDay && existingComponents.hour != nil {
-                // Convert to date-only: remove hour/minute
-                var newComponents = existingComponents
-                newComponents.hour = nil
-                newComponents.minute = nil
-                reminder.dueDateComponents = newComponents
-            } else if !isAllDay && existingComponents.hour == nil {
-                // Convert from date-only to timed: add midnight as default
-                var newComponents = existingComponents
-                newComponents.hour = 0
-                newComponents.minute = 0
-                reminder.dueDateComponents = newComponents
-            }
         }
 
-        // Handle start date changes
-        if request.removeStartDate {
+        switch request.startDate {
+        case .unchanged:
+            break
+        case .clear:
             reminder.startDateComponents = nil
-        } else if let startDate = request.startDate {
-            let allDay = request.isStartAllDay ?? false
+        case .set(let value):
             reminder.startDateComponents = try dateComponents(
-                from: startDate,
-                allDay: allDay,
-                timeZoneIdentifier: request.startTimeZone
+                from: value.date,
+                allDay: value.isAllDay,
+                timeZoneIdentifier: value.timeZoneIdentifier
             )
         }
 
@@ -342,31 +422,41 @@ public actor ReminderService: ReminderServiceProtocol {
             reminder.calendar = targetCalendar
         }
 
-        if request.removeLocation {
+        switch request.location {
+        case .unchanged:
+            break
+        case .clear:
             reminder.location = nil
-        } else if let location = request.location {
+        case .set(let location):
             reminder.location = location
         }
 
-        if request.removeURL {
+        switch request.url {
+        case .unchanged:
+            break
+        case .clear:
             reminder.url = nil
-        } else if let urlString = request.url {
+        case .set(let urlString):
             reminder.url = try validatedURL(urlString)
         }
 
-        // Handle recurrence rule changes
-        if request.removeRecurrence {
+        switch request.recurrenceRule {
+        case .unchanged:
+            break
+        case .clear:
             reminder.recurrenceRules?.forEach { reminder.removeRecurrenceRule($0) }
-        } else if let rrule = request.recurrenceRule {
+        case .set(let rrule):
             reminder.recurrenceRules?.forEach { reminder.removeRecurrenceRule($0) }
             let ekRule = try RRuleParser.parse(rrule)
             reminder.addRecurrenceRule(ekRule)
         }
 
-        // Handle alarm changes
-        if request.removeAlarms {
+        switch request.alarms {
+        case .unchanged:
+            break
+        case .clear:
             reminder.alarms?.forEach { reminder.removeAlarm($0) }
-        } else if let alarms = request.alarms {
+        case .set(let alarms):
             try validateAlarmReferences(alarms, hasStartDate: reminder.startDateComponents != nil)
             reminder.alarms?.forEach { reminder.removeAlarm($0) }
             for alarm in try alarms.map(makeAlarm) { reminder.addAlarm(alarm) }
@@ -379,7 +469,7 @@ public actor ReminderService: ReminderServiceProtocol {
     }
 
     @discardableResult
-    public func deleteReminder(id: String) async throws -> ReminderModel {
+    private func deleteReminderImpl(id: String) async throws -> ReminderModel {
         guard let reminder = eventStore.calendarItem(withIdentifier: id) as? EKReminder else {
             throw ReminderServiceError.reminderNotFound(id)
         }
@@ -397,7 +487,7 @@ public actor ReminderService: ReminderServiceProtocol {
         return model
     }
 
-    public func markDone(id: String) async throws -> ReminderModel {
+    private func markDoneImpl(id: String) async throws -> ReminderModel {
         guard let reminder = eventStore.calendarItem(withIdentifier: id) as? EKReminder else {
             throw ReminderServiceError.reminderNotFound(id)
         }
@@ -415,7 +505,7 @@ public actor ReminderService: ReminderServiceProtocol {
         return Self.mapReminderToModel(reminder)
     }
 
-    public func moveReminder(id: String, toListId: String) async throws -> ReminderModel {
+    private func moveReminderImpl(id: String, toListId: String) async throws -> ReminderModel {
         guard let reminder = eventStore.calendarItem(withIdentifier: id) as? EKReminder else {
             throw ReminderServiceError.reminderNotFound(id)
         }
@@ -566,26 +656,20 @@ public actor ReminderService: ReminderServiceProtocol {
     }
 
     private func validateAlarmReferences(_ alarms: [ReminderAlarmModel], hasStartDate: Bool) throws {
-        for alarm in alarms where alarm.kind == .relative {
+        for case .relative(let minutes) in alarms {
             guard hasStartDate else { throw ReminderServiceError.relativeAlarmRequiresStartDate }
-            guard let minutes = alarm.minutesBefore, minutes >= 0 else {
-                throw ReminderServiceError.invalidAlarm
-            }
+            guard minutes >= 0 else { throw ReminderServiceError.invalidAlarm }
         }
     }
 
     private func makeAlarm(_ model: ReminderAlarmModel) throws -> EKAlarm {
-        switch model.kind {
-        case .relative:
-            guard let minutes = model.minutesBefore, minutes >= 0 else { throw ReminderServiceError.invalidAlarm }
+        switch model {
+        case .relative(let minutes):
+            guard minutes >= 0 else { throw ReminderServiceError.invalidAlarm }
             return EKAlarm(relativeOffset: TimeInterval(-minutes * 60))
-        case .absolute:
-            guard let date = model.absoluteDate else { throw ReminderServiceError.invalidAlarm }
+        case .absolute(let date):
             return EKAlarm(absoluteDate: date)
-        case .location:
-            guard let location = model.structuredLocation, let proximity = model.proximity else {
-                throw ReminderServiceError.invalidAlarm
-            }
+        case .location(let location, let proximity):
             let structured = EKStructuredLocation(title: location.title)
             structured.geoLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
             structured.radius = location.radius

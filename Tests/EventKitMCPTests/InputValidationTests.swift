@@ -6,6 +6,7 @@ import Testing
 @testable import EventKitService
 import MCP
 
+@MainActor
 @Suite("Input Validation Tests")
 struct InputValidationTests {
 
@@ -145,7 +146,13 @@ struct InputValidationTests {
             "upsert": .array([.object([
                 "title": .string("Bad alarms"),
                 "startDate": .string("2026-09-03T12:00:00Z"),
-                "alarms": .array([.int(15), .string("thirty")])
+                "alarms": .array([
+                    .object([
+                        "kind": .string("relative"),
+                        "minutesBefore": .int(15)
+                    ]),
+                    .string("thirty")
+                ])
             ])])
         ], reminderService: service)
         result.expectText(containing: "Invalid alarms")
@@ -158,7 +165,10 @@ struct InputValidationTests {
             "upsert": .array([.object([
                 "title": .string("Bad alarm"),
                 "startDate": .string("2026-09-03T12:00:00Z"),
-                "alarms": .array([.int(-1)])
+                "alarms": .array([.object([
+                    "kind": .string("relative"),
+                    "minutesBefore": .int(-1)
+                ])])
             ])])
         ])
         result.expectText(containing: "non-negative")

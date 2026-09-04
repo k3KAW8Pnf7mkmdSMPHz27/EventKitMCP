@@ -2,7 +2,8 @@ import Foundation
 @testable import EventKitService
 
 /// Mock implementation of ReminderServiceProtocol for testing
-final class MockReminderService: ReminderServiceProtocol, @unchecked Sendable {
+@MainActor
+final class MockReminderService: ReminderServiceProtocol {
     var mockLists: [ReminderListModel] = []
     var mockReminders: [ReminderModel] = []
 
@@ -93,67 +94,41 @@ final class MockReminderService: ReminderServiceProtocol, @unchecked Sendable {
         }
         let existing = mockReminders[index]
 
-        // Handle recurrence: remove if requested, otherwise update if provided or keep existing
-        let newRecurrence: String?
-        if request.removeRecurrence {
-            newRecurrence = nil
-        } else if let rrule = request.recurrenceRule {
-            newRecurrence = rrule
-        } else {
-            newRecurrence = existing.recurrenceRule
+        let existingDueDate = existing.dueDate.map {
+            ReminderDateValue(date: $0, timeZoneIdentifier: existing.dueTimeZone, isAllDay: existing.isAllDay)
         }
-
-        // Handle start date: remove if requested, otherwise update if provided or keep existing
-        let newStartDate: Date?
-        let newIsStartAllDay: Bool
-        if request.removeStartDate {
-            newStartDate = nil
-            newIsStartAllDay = false
-        } else if let startDate = request.startDate {
-            newStartDate = startDate
-            newIsStartAllDay = request.isStartAllDay ?? false
-        } else {
-            newStartDate = existing.startDate
-            newIsStartAllDay = request.isStartAllDay ?? existing.isStartAllDay
+        let existingStartDate = existing.startDate.map {
+            ReminderDateValue(
+                date: $0,
+                timeZoneIdentifier: existing.startTimeZone,
+                isAllDay: existing.isStartAllDay
+            )
         }
-
-        // Handle alarms: remove if requested, otherwise update if provided or keep existing
-        let newAlarms: [ReminderAlarmModel]?
-        if request.removeAlarms {
-            newAlarms = nil
-        } else if let alarms = request.alarms {
-            newAlarms = alarms
-        } else {
-            newAlarms = existing.alarms
-        }
+        let newDueDate = request.dueDate.applying(to: existingDueDate)
+        let newStartDate = request.startDate.applying(to: existingStartDate)
+        let newAlarms = request.alarms.applying(to: existing.alarms)
         if newAlarms?.contains(where: { $0.kind == .relative }) == true,
            newStartDate == nil {
             throw MockError.invalidAlarm
         }
 
-        let newNotes = request.removeNotes ? nil : (request.notes ?? existing.notes)
-        let newDueDate = request.removeDueDate ? nil : (request.dueDate ?? existing.dueDate)
-        let newDueTimeZone = request.removeDueDate ? nil : (request.dueTimeZone ?? existing.dueTimeZone)
-        let newLocation = request.removeLocation ? nil : (request.location ?? existing.location)
-        let newURL = request.removeURL ? nil : (request.url ?? existing.url)
-
         let updated = ReminderModel(
             id: existing.id,
             title: request.title ?? existing.title,
-            notes: newNotes,
+            notes: request.notes.applying(to: existing.notes),
             done: request.done ?? existing.done,
             priority: request.priority ?? existing.priority,
-            dueDate: newDueDate,
-            dueTimeZone: newDueTimeZone,
-            isAllDay: request.isAllDay ?? existing.isAllDay,
+            dueDate: newDueDate?.date,
+            dueTimeZone: newDueDate?.timeZoneIdentifier,
+            isAllDay: newDueDate?.isAllDay ?? false,
             listId: request.listId ?? existing.listId,
             listName: existing.listName,
-            recurrenceRule: newRecurrence,
-            url: newURL,
-            location: newLocation,
-            startDate: newStartDate,
-            startTimeZone: request.removeStartDate ? nil : (request.startTimeZone ?? existing.startTimeZone),
-            isStartAllDay: newIsStartAllDay,
+            recurrenceRule: request.recurrenceRule.applying(to: existing.recurrenceRule),
+            url: request.url.applying(to: existing.url),
+            location: request.location.applying(to: existing.location),
+            startDate: newStartDate?.date,
+            startTimeZone: newStartDate?.timeZoneIdentifier,
+            isStartAllDay: newStartDate?.isAllDay ?? false,
             alarms: newAlarms
         )
         mockReminders[index] = updated
@@ -232,5 +207,15 @@ final class MockReminderService: ReminderServiceProtocol, @unchecked Sendable {
     enum MockError: Error {
         case notFound
         case invalidAlarm
+    }
+}
+
+private extension ReminderFieldUpdate {
+    func applying(to currentValue: Value?) -> Value? {
+        switch self {
+        case .unchanged: currentValue
+        case .clear: nil
+        case .set(let value): value
+        }
     }
 }
