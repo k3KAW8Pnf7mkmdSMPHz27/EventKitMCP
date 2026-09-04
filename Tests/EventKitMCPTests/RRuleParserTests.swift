@@ -78,7 +78,11 @@ struct RRuleParserTests {
         @Test("Parse UNTIL date-only format")
         func parseUntilDateOnly() throws {
             let rule = try RRuleParser.parse("FREQ=DAILY;UNTIL=20261231")
-            #expect(rule.recurrenceEnd?.endDate != nil)
+            let endDate = try #require(rule.recurrenceEnd?.endDate)
+            let components = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: endDate)
+            #expect(components.year == 2026)
+            #expect(components.month == 12)
+            #expect(components.day == 31)
         }
 
         @Test("Parse BYDAY simple")

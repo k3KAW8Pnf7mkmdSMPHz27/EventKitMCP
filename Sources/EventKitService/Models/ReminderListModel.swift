@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Reminder List Model
 
 /// A simplified representation of a reminder list (calendar) for MCP transport
-public struct ReminderListModel: Codable, Sendable, Identifiable {
+public struct ReminderListModel: Sendable, Identifiable {
     public let id: String
     public let title: String
     public let color: String?
@@ -34,7 +34,7 @@ public struct ReminderListModel: Codable, Sendable, Identifiable {
 // MARK: - Create List Request
 
 /// Parameters for creating a new reminder list
-public struct CreateListRequest: Codable, Sendable {
+public struct CreateListRequest: Sendable {
     public let title: String
     public let color: String?
 

@@ -6,9 +6,110 @@ import Testing
 @testable import EventKitService
 import MCP
 
+@MainActor
 @Suite("Query Reminders Handler Tests")
 struct QueryRemindersTests {
     let logger = Logger(label: "test")
+
+    @Test("Default limit bounds output and offset retrieves the next page")
+    func paginatesResults() async throws {
+        let service = MockReminderService()
+        service.mockReminders = (0..<30).map {
+            ReminderModel(id: "r\($0)", title: "Task \($0)", listId: "default", listName: "Default")
+        }
+
+        let firstPage = await queryReminders(service: service)
+        guard case .object(let first)? = firstPage.structuredContent,
+              case .array(let firstReminders)? = first["reminders"] else {
+            Issue.record("Expected a structured first page")
+            return
+        }
+        #expect(firstReminders.count == 25)
+        #expect(first["totalCount"]?.intValue == 30)
+        #expect(first["hasMore"]?.boolValue == true)
+
+        let secondPage = await handleToolCall(
+            name: "query_reminders",
+            arguments: ["limit": .int(10), "offset": .int(25)],
+            reminderService: service,
+            logger: logger
+        )
+        guard case .object(let second)? = secondPage.structuredContent,
+              case .array(let secondReminders)? = second["reminders"] else {
+            Issue.record("Expected a structured second page")
+            return
+        }
+        #expect(secondReminders.count == 5)
+        #expect(second["hasMore"]?.boolValue == false)
+    }
+
+    @Test("Upcoming includes the entire final calendar day")
+    func upcomingIncludesFinalDay() async throws {
+        let service = MockReminderService()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let finalDay = try #require(calendar.date(byAdding: .day, value: 7, to: today))
+        let finalAfternoon = try #require(calendar.date(byAdding: .hour, value: 18, to: finalDay))
+        service.mockReminders = [
+            ReminderModel(
+                id: "last-day",
+                title: "Last-day afternoon",
+                dueDate: finalAfternoon,
+                listId: "default",
+                listName: "Default"
+            )
+        ]
+
+        let result = await handleToolCall(
+            name: "query_reminders",
+            arguments: ["filter": .string("upcoming"), "days": .int(7)],
+            reminderService: service,
+            logger: logger
+        )
+        result.expectText(containing: "Last-day afternoon")
+    }
+
+    @Test("Structured query preserves time zones and every alarm kind")
+    func structuredTimeZonesAndAlarms() async throws {
+        let service = MockReminderService()
+        service.mockReminders = [ReminderModel(
+            id: "zoned",
+            title: "Zoned reminder",
+            dueDate: TestFixtures.todayNoon,
+            dueTimeZone: "America/Chicago",
+            listId: "default",
+            listName: "Default",
+            startDate: TestFixtures.todayNoon,
+            startTimeZone: "Europe/Paris",
+            alarms: [
+                .relative(minutesBefore: 15),
+                .absolute(TestFixtures.todayNoon),
+                .location(
+                    .init(title: "Office", latitude: 41.8781, longitude: -87.6298, radius: 100),
+                    proximity: .enter
+                )
+            ]
+        )]
+
+        let result = await queryReminders(service: service)
+        result.expectSuccess()
+        guard let content = result.structuredContent,
+              case .object(let structured) = content,
+              case .array(let reminders)? = structured["reminders"],
+              case .object(let reminder)? = reminders.first else {
+            Issue.record("Expected structured reminder output")
+            return
+        }
+        #expect(reminder["dueTimeZone"]?.stringValue == "America/Chicago")
+        #expect(reminder["startTimeZone"]?.stringValue == "Europe/Paris")
+        guard case .array(let alarms)? = reminder["alarms"] else {
+            Issue.record("Expected structured alarms")
+            return
+        }
+        #expect(Set(alarms.compactMap { $0.objectValue?["kind"]?.stringValue }) == [
+            "relative", "absolute", "location"
+        ])
+    }
 
     // MARK: - ID-based search queries
 
@@ -408,16 +509,18 @@ struct QueryRemindersTests {
         }
     }
 
-    // MARK: - Priority tests
+    // MARK: - Composed query tests
 
-    @Test("Search takes priority over filter")
-    func testSearchPriorityOverFilter() async throws {
+    @Test("Search is applied within the selected time filter")
+    func testSearchComposesWithFilter() async throws {
         let mockService = MockReminderService()
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
 
         mockService.mockReminders = [
-            ReminderModel(id: "r1", title: "Find me", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Work"),
-            ReminderModel(id: "r2", title: "Overdue", notes: nil, done: false, priority: .none, dueDate: yesterday, listId: "list-1", listName: "Work")
+            ReminderModel(id: "r1", title: "Find overdue", notes: nil, done: false, priority: .none, dueDate: yesterday, listId: "list-1", listName: "Work"),
+            ReminderModel(id: "r2", title: "Other overdue", notes: nil, done: false, priority: .none, dueDate: yesterday, listId: "list-1", listName: "Work"),
+            ReminderModel(id: "r3", title: "Find unscheduled", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Work"),
+            ReminderModel(id: "r4", title: "Find personal overdue", notes: nil, done: false, priority: .none, dueDate: yesterday, listId: "list-2", listName: "Personal")
         ]
 
         // Provide both search and filter
@@ -425,7 +528,8 @@ struct QueryRemindersTests {
             name: "query_reminders",
             arguments: [
                 "search": .string("Find"),
-                "filter": .string("overdue")
+                "filter": .string("overdue"),
+                "listId": .string("list-1")
             ],
             reminderService: mockService,
 
@@ -435,10 +539,11 @@ struct QueryRemindersTests {
 
         #expect(result.isError == nil || result.isError == false)
         if case .text(let text, _, _) = result.content[0] {
-            // Should use search, not filter
             #expect(text.contains("Found 1 reminder(s)"))
-            #expect(text.contains("Find me"))
-            #expect(!text.contains("Overdue"))
+            #expect(text.contains("Find overdue"))
+            #expect(!text.contains("Other overdue"))
+            #expect(!text.contains("Find unscheduled"))
+            #expect(!text.contains("Find personal overdue"))
         } else {
             Issue.record("Expected text content")
         }

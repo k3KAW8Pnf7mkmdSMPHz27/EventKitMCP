@@ -23,7 +23,6 @@ DerivedData
 # Swift Package Manager
 .build/
 .swiftpm/
-Package.resolved
 Packages/
 *.xcodeproj
 
@@ -43,7 +42,6 @@ fastlane/test_output
 iOSInjectionProject/
 
 # macOS
-.DS_Store
 .AppleDouble
 .LSOverride
 ._*
@@ -61,6 +59,12 @@ iOSInjectionProject/
 *.swo
 *~
 .vscode/
+
+# Local toolchain selection
+mise.local.toml
+
+# Local agent workspace data
+.air/
 
 # Build outputs
 bin/

@@ -6,8 +6,89 @@ import Testing
 @testable import EventKitService
 import MCP
 
+@MainActor
 @Suite("Write Reminders Handler Tests")
 struct WriteRemindersHandlerTests {
+
+    @Test("Updating an unrelated field preserves alarms and time zones")
+    func unrelatedUpdatePreservesExpandedFields() async {
+        let service = MockReminderService()
+        let alarms: [ReminderAlarmModel] = [
+            .absolute(TestFixtures.todayNoon),
+            .location(
+                .init(title: "Office", latitude: 41.8781, longitude: -87.6298, radius: 100),
+                proximity: .leave
+            )
+        ]
+        service.mockReminders = [ReminderModel(
+            id: "preserve",
+            title: "Original",
+            dueDate: TestFixtures.todayNoon,
+            dueTimeZone: "America/Chicago",
+            listId: "default",
+            listName: "Default",
+            startDate: TestFixtures.todayNoon,
+            startTimeZone: "Europe/Paris",
+            alarms: alarms
+        )]
+
+        let result = await callTool("write_reminders", arguments: [
+            "upsert": .array([.object([
+                "id": .string("preserve"),
+                "title": .string("Updated")
+            ])])
+        ], reminderService: service)
+
+        result.expectSuccess()
+        #expect(service.mockReminders[0].alarms == alarms)
+        #expect(service.mockReminders[0].dueTimeZone == "America/Chicago")
+        #expect(service.mockReminders[0].startTimeZone == "Europe/Paris")
+    }
+
+    @Test("Explicit null clears every nullable reminder field")
+    func explicitNullClearsFields() async {
+        let service = MockReminderService()
+        service.mockReminders = [ReminderModel(
+            id: "clear-me",
+            title: "Clear fields",
+            notes: "notes",
+            dueDate: TestFixtures.todayNoon,
+            dueTimeZone: "America/Chicago",
+            listId: "default",
+            listName: "Default",
+            recurrenceRule: "FREQ=DAILY",
+            url: "https://example.com",
+            location: "Office",
+            startDate: TestFixtures.todayNoon,
+            startTimeZone: "America/Chicago",
+            alarms: [.relative(minutesBefore: 15)]
+        )]
+
+        let result = await callTool("write_reminders", arguments: [
+            "upsert": .array([.object([
+                "id": .string("clear-me"),
+                "notes": .null,
+                "dueDate": .null,
+                "location": .null,
+                "url": .null,
+                "startDate": .null,
+                "recurrence": .null,
+                "alarms": .null
+            ])])
+        ], reminderService: service)
+
+        result.expectSuccess()
+        let reminder = service.mockReminders[0]
+        #expect(reminder.notes == nil)
+        #expect(reminder.dueDate == nil)
+        #expect(reminder.dueTimeZone == nil)
+        #expect(reminder.location == nil)
+        #expect(reminder.url == nil)
+        #expect(reminder.startDate == nil)
+        #expect(reminder.startTimeZone == nil)
+        #expect(reminder.recurrenceRule == nil)
+        #expect(reminder.alarms == nil)
+    }
 
     // MARK: - Create Tests (upsert without id)
 
@@ -180,7 +261,13 @@ struct WriteRemindersHandlerTests {
                     .object([
                         "title": .string("Meeting"),
                         "dueDate": .string("2026-06-01T10:00:00"),
-                        "alarms": .array([.int(0), .int(15), .int(60)])
+                        "startDate": .string("2026-06-01T10:00:00"),
+                        "alarms": .array([0, 15, 60].map { minutes in
+                            .object([
+                                "kind": .string("relative"),
+                                "minutesBefore": .int(minutes)
+                            ])
+                        })
                     ])
                 ])
             ],
@@ -190,16 +277,21 @@ struct WriteRemindersHandlerTests {
         result.expectSuccess()
         result.expectText(containing: "Created 1")
         result.expectText(containing: "Alarms:")
-        result.expectText(containing: "at time of event")
-        result.expectText(containing: "15 min before")
-        result.expectText(containing: "1 hr before")
+        result.expectText(containing: "at start")
+        result.expectText(containing: "15 min before start")
+        result.expectText(containing: "60 min before start")
     }
 
     @Test("Update reminder alarms")
     func testUpdateAlarms() async throws {
         let mockService = MockReminderService()
         mockService.mockReminders = [
-            TestFixtures.reminder(id: "rem-1", title: "Meeting", alarms: [15])
+            TestFixtures.reminder(
+                id: "rem-1",
+                title: "Meeting",
+                startDate: TestFixtures.todayNoon,
+                alarms: [15]
+            )
         ]
 
         let result = await callTool(
@@ -208,7 +300,10 @@ struct WriteRemindersHandlerTests {
                 "upsert": .array([
                     .object([
                         "id": .string("rem-1"),
-                        "alarms": .array([.int(30)])
+                        "alarms": .array([.object([
+                            "kind": .string("relative"),
+                            "minutesBefore": .int(30)
+                        ])])
                     ])
                 ])
             ],

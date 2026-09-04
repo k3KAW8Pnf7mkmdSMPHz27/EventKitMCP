@@ -6,6 +6,7 @@ import Testing
 @testable import EventKitService
 import MCP
 
+@MainActor
 @Suite("Input Validation Tests")
 struct InputValidationTests {
 
@@ -61,6 +62,17 @@ struct InputValidationTests {
         result.expectError(containing: "Invalid days value")
     }
 
+    @Test("query_reminders rejects limits outside the documented range")
+    func invalidLimits() async {
+        await queryReminders(limit: 0).expectError(containing: "Invalid pagination")
+        await queryReminders(limit: 101).expectError(containing: "Invalid pagination")
+    }
+
+    @Test("query_reminders rejects negative offsets")
+    func invalidOffset() async {
+        await queryReminders(offset: -1).expectError(containing: "Invalid pagination")
+    }
+
     // MARK: - Color Validation Tests
 
     @Test("manage_reminder_list create with valid hex color succeeds")
@@ -109,5 +121,67 @@ struct InputValidationTests {
     func testNoColorProvided() async throws {
         let result = await manageReminderList(action: "create", title: "Test List")
         result.expectSuccess()
+    }
+
+    @Test("Malformed URL is rejected before mutation")
+    func invalidURL() async {
+        let service = MockReminderService()
+        let result = await callTool("write_reminders", arguments: [
+            "upsert": .array([.object([
+                "title": .string("Bad URL"),
+                "url": .string("not a url")
+            ])])
+        ], reminderService: service)
+        result.expectText(containing: "Invalid URL")
+        #expect(service.mockReminders.isEmpty)
+    }
+
+    @Test("Unknown time zone is rejected before mutation")
+    func invalidTimeZone() async {
+        let service = MockReminderService()
+        let result = await callTool("write_reminders", arguments: [
+            "upsert": .array([.object([
+                "title": .string("Bad zone"),
+                "dueDate": .string("2026-09-03T12:00:00Z"),
+                "dueTimeZone": .string("Mars/Olympus")
+            ])])
+        ], reminderService: service)
+        result.expectText(containing: "Unknown time zone")
+        #expect(service.mockReminders.isEmpty)
+    }
+
+    @Test("Invalid and mixed alarm arrays fail atomically")
+    func invalidAlarmArray() async {
+        let service = MockReminderService()
+        let result = await callTool("write_reminders", arguments: [
+            "upsert": .array([.object([
+                "title": .string("Bad alarms"),
+                "startDate": .string("2026-09-03T12:00:00Z"),
+                "alarms": .array([
+                    .object([
+                        "kind": .string("relative"),
+                        "minutesBefore": .int(15)
+                    ]),
+                    .string("thirty")
+                ])
+            ])])
+        ], reminderService: service)
+        result.expectText(containing: "Invalid alarms")
+        #expect(service.mockReminders.isEmpty)
+    }
+
+    @Test("Negative alarm offsets are rejected")
+    func negativeAlarm() async {
+        let result = await callTool("write_reminders", arguments: [
+            "upsert": .array([.object([
+                "title": .string("Bad alarm"),
+                "startDate": .string("2026-09-03T12:00:00Z"),
+                "alarms": .array([.object([
+                    "kind": .string("relative"),
+                    "minutesBefore": .int(-1)
+                ])])
+            ])])
+        ])
+        result.expectText(containing: "non-negative")
     }
 }
