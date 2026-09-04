@@ -9,7 +9,7 @@ jobs:
   build-and-test:
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Select Xcode 26 / Swift 6.2+
         run: sudo xcode-select -s /Applications/Xcode_26.0.app/Contents/Developer
       - name: Build with complete concurrency checking
