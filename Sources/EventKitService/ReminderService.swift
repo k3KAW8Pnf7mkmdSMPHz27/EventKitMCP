@@ -528,7 +528,8 @@ public actor ReminderService: ReminderServiceProtocol {
 
                 let request = eventStore.fetchReminders(matching: predicate) { [weak self] reminders in
                     let models = (reminders ?? []).map(Self.mapReminderToModel)
-                    Task { await self?.finishReminderFetch(id: id, result: .success(models)) }
+                    guard let service = self else { return }
+                    Task { await service.finishReminderFetch(id: id, result: .success(models)) }
                 }
                 pendingReminderFetch?.request = request
                 pendingReminderFetch?.timeoutTask = Task { [weak self, operationTimeout] in
