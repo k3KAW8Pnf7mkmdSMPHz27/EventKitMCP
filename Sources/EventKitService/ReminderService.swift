@@ -71,6 +71,15 @@ actor EventStoreOperationGate {
         } onCancel: {
             Task { await self.failWaiter(id: id, error: CancellationError()) }
         }
+
+        // `onCancel` removes the waiter through an unstructured Task, so cancellation can
+        // land after `release()` has already dequeued and resumed us. Re-check here and
+        // hand the gate straight on, or the caller would proceed with a cancelled task
+        // and the slot would leak.
+        if Task.isCancelled {
+            release()
+            throw CancellationError()
+        }
     }
 
     func release() {

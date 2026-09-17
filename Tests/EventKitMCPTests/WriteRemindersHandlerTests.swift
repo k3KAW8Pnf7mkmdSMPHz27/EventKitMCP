@@ -45,6 +45,57 @@ struct WriteRemindersHandlerTests {
         #expect(service.mockReminders[0].startTimeZone == "Europe/Paris")
     }
 
+    @Test("A date-only due date anchors to the supplied time zone, not the server's")
+    func dateOnlyAnchorsToSuppliedTimeZone() async throws {
+        let service = MockReminderService()
+
+        let result = await callTool("write_reminders", arguments: [
+            "upsert": .array([.object([
+                "title": .string("All-day in Tokyo"),
+                "dueDate": .string("2026-03-15"),
+                "dueTimeZone": .string("Asia/Tokyo")
+            ])])
+        ], reminderService: service)
+
+        result.expectSuccess()
+        let reminder = try #require(service.mockReminders.first)
+        #expect(reminder.dueTimeZone == "Asia/Tokyo")
+
+        // The date-only branch used to hardcode TimeZone.current, so the instant landed
+        // on local midnight. Anchored correctly it is midnight in Tokyo.
+        var tokyoCalendar = Calendar(identifier: .gregorian)
+        tokyoCalendar.timeZone = try #require(TimeZone(identifier: "Asia/Tokyo"))
+        let due = try #require(reminder.dueDate)
+        let parts = tokyoCalendar.dateComponents([.year, .month, .day, .hour], from: due)
+
+        #expect(parts.year == 2026)
+        #expect(parts.month == 3)
+        #expect(parts.day == 15)
+        #expect(parts.hour == 0)
+    }
+
+    @Test("A date-only due date without a time zone still uses the server zone")
+    func dateOnlyWithoutTimeZoneUsesLocal() async throws {
+        let service = MockReminderService()
+
+        let result = await callTool("write_reminders", arguments: [
+            "upsert": .array([.object([
+                "title": .string("All-day local"),
+                "dueDate": .string("2026-03-15")
+            ])])
+        ], reminderService: service)
+
+        result.expectSuccess()
+        let reminder = try #require(service.mockReminders.first)
+        let due = try #require(reminder.dueDate)
+        let parts = Calendar.current.dateComponents([.year, .month, .day, .hour], from: due)
+
+        #expect(parts.year == 2026)
+        #expect(parts.month == 3)
+        #expect(parts.day == 15)
+        #expect(parts.hour == 0)
+    }
+
     @Test("Explicit null clears every nullable reminder field")
     func explicitNullClearsFields() async {
         let service = MockReminderService()

@@ -53,13 +53,24 @@ struct InputValidationTests {
     func testInvalidDaysZero() async throws {
         let result = await queryReminders(filter: "upcoming", days: 0)
         result.expectError(containing: "Invalid days value")
-        #expect(result.textContent?.contains("positive integer") == true)
+        #expect(result.textContent?.contains("1 through 3650") == true)
     }
 
     @Test("query_reminders with negative days returns error")
     func testInvalidDaysNegative() async throws {
         let result = await queryReminders(filter: "upcoming", days: -5)
         result.expectError(containing: "Invalid days value")
+    }
+
+    @Test("query_reminders rejects a days window that would overflow the date math")
+    func rejectsUnboundedDays() async {
+        // ReminderFilters.upcoming computes `days + 1`, so an unbounded value
+        // overflow-traps rather than returning an error.
+        await queryReminders(filter: "upcoming", days: Int.max)
+            .expectError(containing: "Invalid days value")
+        await queryReminders(filter: "upcoming", days: 3651)
+            .expectError(containing: "Invalid days value")
+        await queryReminders(filter: "upcoming", days: 3650).expectSuccess()
     }
 
     @Test("query_reminders rejects limits outside the documented range")

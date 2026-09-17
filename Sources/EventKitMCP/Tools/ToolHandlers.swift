@@ -473,11 +473,21 @@ private func handleWriteReminders(
                 // Parse recurrence; null is equivalent to omission during creation.
                 let recurrenceRule = try parseRecurrenceField(itemObj).setValue
 
+                // Resolve zones first so date-only inputs anchor to the caller's zone.
+                let dueTimeZoneId = try parseTimeZone(itemObj["dueTimeZone"])
+                let startTimeZoneId = try parseTimeZone(itemObj["startTimeZone"])
+
                 // Parse due date with time info to determine isAllDay
-                let dateInfo = try requireDateWithTimeInfo(itemObj["dueDate"]?.stringValue)
+                let dateInfo = try requireDateWithTimeInfo(
+                    itemObj["dueDate"]?.stringValue,
+                    in: dueTimeZoneId.flatMap(TimeZone.init(identifier:))
+                )
 
                 // Parse start date
-                let startDateInfo = try requireDateWithTimeInfo(itemObj["startDate"]?.stringValue)
+                let startDateInfo = try requireDateWithTimeInfo(
+                    itemObj["startDate"]?.stringValue,
+                    in: startTimeZoneId.flatMap(TimeZone.init(identifier:))
+                )
 
                 // Parse alarms
                 let createAlarms = try parseAlarmsField(itemObj).setValue
@@ -491,14 +501,14 @@ private func handleWriteReminders(
                     notes: itemObj["notes"]?.stringValue,
                     listId: itemObj["listId"]?.stringValue,
                     dueDate: dateInfo?.date,
-                    dueTimeZone: try parseTimeZone(itemObj["dueTimeZone"]),
+                    dueTimeZone: dueTimeZoneId,
                     isAllDay: dateInfo?.isAllDay ?? false,  // false if no date
                     priority: try requirePriority(itemObj["priority"]?.stringValue),
                     recurrenceRule: recurrenceRule,
                     location: itemObj["location"]?.stringValue,
                     url: try parseURL(itemObj["url"]),
                     startDate: startDateInfo?.date,
-                    startTimeZone: try parseTimeZone(itemObj["startTimeZone"]),
+                    startTimeZone: startTimeZoneId,
                     isStartAllDay: startDateInfo?.isAllDay ?? false,
                     alarms: createAlarms
                 )
@@ -770,7 +780,7 @@ enum ParseError: Error, LocalizedError {
         case .invalidFilterValue(let value):
             return "Invalid filter: '\(value)'. Use 'all', 'overdue', 'today', or 'upcoming'"
         case .invalidDaysValue(let value):
-            return "Invalid days value: '\(value)'. Must be a positive integer"
+            return "Invalid days value: '\(value)'. Must be an integer from 1 through 3650"
         case .invalidColorFormat(let value):
             return "Invalid color format: '\(value)'. Use hex format (e.g., '#FF5733' or 'FF5733')"
         case .invalidRRule(let value, let reason):
@@ -796,7 +806,7 @@ private struct ParsedDate {
 }
 
 /// Parse date string and detect if it includes a time component
-private func parseDateWithTimeInfo(_ string: String?) -> ParsedDate? {
+private func parseDateWithTimeInfo(_ string: String?, in timeZone: TimeZone? = nil) -> ParsedDate? {
     guard let string = string else { return nil }
 
     let formatter = ISO8601DateFormatter()
@@ -814,9 +824,10 @@ private func parseDateWithTimeInfo(_ string: String?) -> ParsedDate? {
     }
 
     // Fallback: local datetime (no timezone = local time) - has time
+    // A caller-supplied time zone anchors wall-clock inputs; otherwise they are local.
     let localFormatter = DateFormatter()
     localFormatter.locale = Locale(identifier: "en_US_POSIX")
-    localFormatter.timeZone = TimeZone.current
+    localFormatter.timeZone = timeZone ?? TimeZone.current
 
     localFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
     if let date = localFormatter.date(from: string) {
@@ -838,9 +849,12 @@ private func parseDate(_ string: String?) -> Date? {
 
 /// Parse date with time info and explicit error when format is invalid
 /// Returns (date, isAllDay) where isAllDay is true if the input was date-only format
-private func requireDateWithTimeInfo(_ string: String?) throws -> (date: Date, isAllDay: Bool)? {
+private func requireDateWithTimeInfo(
+    _ string: String?,
+    in timeZone: TimeZone? = nil
+) throws -> (date: Date, isAllDay: Bool)? {
     guard let string = string else { return nil }
-    guard let parsed = parseDateWithTimeInfo(string) else {
+    guard let parsed = parseDateWithTimeInfo(string, in: timeZone) else {
         throw ParseError.invalidDateFormat(string)
     }
     return (parsed.date, !parsed.hasTime)
@@ -886,7 +900,9 @@ private func requireFilter(_ string: String?) throws -> QueryFilter {
 /// Parse days with explicit error when value is invalid
 private func requireDays(_ value: Value?) throws -> Int {
     guard let value = value else { return 7 }
-    guard let days = value.intValue, days > 0 else {
+    // Upper bound guards `days + 1` in ReminderFilters.upcoming from overflow-trapping,
+    // and keeps the filter window meaningful. Ten years is well past any real use.
+    guard let days = value.intValue, (1...3650).contains(days) else {
         let description: String
         if let str = value.stringValue {
             description = str
@@ -988,12 +1004,17 @@ private func parseDateField(
 ) throws -> ReminderFieldUpdate<ReminderDateValue> {
     guard let value = object[key] else { return .unchanged }
     if value.isNull { return .clear }
-    guard let string = value.stringValue, let parsed = parseDateWithTimeInfo(string) else {
+    // Resolve the zone first: a date-only or zone-less input is a wall-clock time that
+    // must be anchored in the caller's zone, not in the server's.
+    let timeZoneIdentifier = try parseTimeZone(object[timeZoneKey])
+    let timeZone = timeZoneIdentifier.flatMap(TimeZone.init(identifier:))
+    guard let string = value.stringValue,
+          let parsed = parseDateWithTimeInfo(string, in: timeZone) else {
         throw ParseError.invalidDateFormat(value.stringValue ?? "(non-string value)")
     }
     return .set(ReminderDateValue(
         date: parsed.date,
-        timeZoneIdentifier: try parseTimeZone(object[timeZoneKey]),
+        timeZoneIdentifier: timeZoneIdentifier,
         isAllDay: !parsed.hasTime
     ))
 }

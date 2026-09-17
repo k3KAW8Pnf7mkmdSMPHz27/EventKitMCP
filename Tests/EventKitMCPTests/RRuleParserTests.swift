@@ -200,6 +200,29 @@ struct RRuleParserTests {
             }
         }
 
+        @Test("Error on BYDAY ordinal that would silently coerce to every week")
+        func errorOutOfRangeByDayOrdinal() {
+            // These all matched the pattern and fell through `Int(numStr) ?? 0`, which
+            // means "every week" -- a wrong rule accepted silently rather than rejected.
+            for value in ["999999999999999999999TU", "+TU", "-TU", "0TU", "54TU", "-54FR"] {
+                #expect(throws: RRuleParserError.self) {
+                    try RRuleParser.parse("FREQ=MONTHLY;BYDAY=\(value)")
+                }
+            }
+        }
+
+        @Test("Valid BYDAY ordinals at the RFC 5545 boundary are still accepted")
+        func acceptsBoundaryByDayOrdinals() throws {
+            let first = try RRuleParser.parse("FREQ=MONTHLY;BYDAY=1MO")
+            #expect(first.daysOfTheWeek?.first?.weekNumber == 1)
+
+            let last = try RRuleParser.parse("FREQ=MONTHLY;BYDAY=53MO")
+            #expect(last.daysOfTheWeek?.first?.weekNumber == 53)
+
+            let negative = try RRuleParser.parse("FREQ=MONTHLY;BYDAY=-53MO")
+            #expect(negative.daysOfTheWeek?.first?.weekNumber == -53)
+        }
+
         @Test("Error on invalid BYMONTH")
         func errorInvalidByMonth() {
             #expect(throws: RRuleParserError.self) {
@@ -229,6 +252,27 @@ struct RRuleParserTests {
             )
             let rrule = RRuleParser.format(rule)
             #expect(rrule == "FREQ=DAILY")
+        }
+
+        @Test("UNTIL round-trips through format and parse")
+        func untilRoundTrips() throws {
+            // formatUntilDate previously omitted the POSIX locale and Gregorian calendar,
+            // so under a non-Gregorian host calendar `yyyy` emitted the era year and the
+            // result would not re-parse. parseUntilDate was already hardened, so an
+            // asymmetric bug showed up here as a failed round-trip.
+            let until = Date(timeIntervalSince1970: 1_767_225_600)  // 2026-01-01T00:00:00Z
+            let rule = EKRecurrenceRule(
+                recurrenceWith: .daily,
+                interval: 1,
+                end: EKRecurrenceEnd(end: until)
+            )
+
+            let rrule = RRuleParser.format(rule)
+            #expect(rrule.contains("UNTIL=20260101T000000Z"))
+
+            let reparsed = try RRuleParser.parse(rrule)
+            let reparsedEnd = try #require(reparsed.recurrenceEnd?.endDate)
+            #expect(abs(reparsedEnd.timeIntervalSince(until)) < 1)
         }
 
         @Test("Format daily with interval")
