@@ -96,8 +96,16 @@ struct EventKitMCPServer: AsyncParsableCommand {
             logger.info("Running in read-only mode - mutating operations disabled")
         }
 
-        if let ids = allowedListIds {
-            logger.info("List access restricted to \(ids.count) list(s)")
+        if allowedListIds != nil {
+            let validation = await reminderService.validateAllowedLists()
+            for id in validation.unresolvedIds {
+                logger.warning("Allowed list not found: \(id)")
+            }
+            if validation.isFatal {
+                logger.error("No configured lists resolved; refusing to start")
+                throw ExitCode.failure
+            }
+            logger.info("List access restricted to \(validation.resolvedCount) list(s)")
         }
 
         logger.info("Server configured, starting transport")

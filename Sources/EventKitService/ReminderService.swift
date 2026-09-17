@@ -104,7 +104,7 @@ public actor ReminderService: ReminderServiceProtocol {
 
     private let eventStore: EKEventStore
     private let logger: Logger
-    private let allowedListIds: Set<String>?
+    private let listAccess: ListAccessPolicy
     private let operationGate = EventStoreOperationGate()
     private let operationTimeout: Duration
     private var pendingReminderFetch: PendingReminderFetch?
@@ -116,7 +116,7 @@ public actor ReminderService: ReminderServiceProtocol {
     ) {
         self.eventStore = EKEventStore()
         self.logger = logger
-        self.allowedListIds = allowedListIds
+        self.listAccess = ListAccessPolicy(allowedIds: allowedListIds)
         self.operationTimeout = operationTimeout
     }
 
@@ -128,6 +128,35 @@ public actor ReminderService: ReminderServiceProtocol {
 
     public func getLists() async throws -> [ReminderListModel] {
         try await withExclusiveEventStoreAccess { try await $0.getListsImpl() }
+    }
+
+    /// Check the configured allowlist against the lists that actually exist.
+    ///
+    /// Call once after access is granted. A stale or mistyped `--allowed-lists` entry
+    /// would otherwise narrow silently, and an entry matching nothing at all would
+    /// leave the restriction in place with no lists behind it.
+    public func validateAllowedLists() async -> AllowedListValidation {
+        await withGateOrUnvalidated { service in
+            let available = Set(
+                service.eventStore.calendars(for: .reminder).map(\.calendarIdentifier)
+            )
+            return AllowedListValidation(
+                isRestricted: service.listAccess.isRestricted,
+                resolvedCount: service.listAccess.allowedIds?.intersection(available).count ?? 0,
+                unresolvedIds: service.listAccess.unresolvedIds(available: available)
+            )
+        }
+    }
+
+    private func withGateOrUnvalidated(
+        _ body: @Sendable (isolated ReminderService) async -> AllowedListValidation
+    ) async -> AllowedListValidation {
+        guard (try? await operationGate.acquire(timeout: operationTimeout)) != nil else {
+            return .unrestricted
+        }
+        let result = await body(self)
+        await operationGate.release()
+        return result
     }
 
     public func getList(id: String) async throws -> ReminderListModel? {
@@ -182,14 +211,26 @@ public actor ReminderService: ReminderServiceProtocol {
     // MARK: - Access Control Helpers
 
     private func isListAllowed(id: String) -> Bool {
-        guard let allowed = allowedListIds else { return true }
-        return allowed.contains(id)
+        listAccess.isAllowed(id)
     }
 
     private func allowedCalendars() -> [EKCalendar] {
         let all = eventStore.calendars(for: .reminder)
-        guard let allowed = allowedListIds else { return all }
-        return all.filter { allowed.contains($0.calendarIdentifier) }
+        guard listAccess.isRestricted else { return all }
+        return all.filter { listAccess.isAllowed($0.calendarIdentifier) }
+    }
+
+    /// Resolve the calendars a query may touch, or `nil` when the allowlist matches none.
+    ///
+    /// EventKit reads an empty `calendars:` array as "every calendar", so a restricted
+    /// policy that matches nothing must short-circuit instead of building a predicate.
+    private func queryableCalendars() -> [EKCalendar]? {
+        let calendars = allowedCalendars()
+        if listAccess.isEmptyMatch(matchedCount: calendars.count) {
+            logger.warning("Allowed list restriction matched no calendars; denying query")
+            return nil
+        }
+        return calendars
     }
 
     // MARK: - Access
@@ -212,7 +253,7 @@ public actor ReminderService: ReminderServiceProtocol {
     // MARK: - Lists
 
     private func getListsImpl() async throws -> [ReminderListModel] {
-        let calendars = allowedCalendars()
+        guard let calendars = queryableCalendars() else { return [] }
         return calendars.map { mapCalendarToList($0) }
     }
 
@@ -228,7 +269,7 @@ public actor ReminderService: ReminderServiceProtocol {
 
     private func createListImpl(_ request: CreateListRequest) async throws -> ReminderListModel {
         // Block list creation when allowlist is active
-        if allowedListIds != nil {
+        if listAccess.isRestricted {
             throw ReminderServiceError.listCreationBlocked
         }
 
@@ -277,7 +318,8 @@ public actor ReminderService: ReminderServiceProtocol {
             }
             calendars = [calendar]
         } else {
-            calendars = allowedCalendars()
+            guard let allowed = queryableCalendars() else { return [] }
+            calendars = allowed
         }
 
         let predicate = includeDone
