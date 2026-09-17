@@ -1,0 +1,137 @@
+name: Bump Homebrew tap
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to pin the formula to (e.g. v1.1.0)
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  TAP_REPO: k3KAW8Pnf7mkmdSMPHz27/homebrew-mcp
+  FORMULA: Formula/eventkit-mcp-server.rb
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag and commit
+        id: release
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+          SOURCE_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG="${INPUT_TAG:-$REF_NAME}"
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::Refusing to bump: '$TAG' is not a vX.Y.Z tag" >&2; exit 1 ;;
+          esac
+
+          # Prefer the peeled ref: an annotated tag's own refs/tags/<tag> points at
+          # the tag object, not the commit, and Homebrew needs the commit.
+          REFS=$(git ls-remote "https://github.com/${SOURCE_REPO}.git" \
+                   "refs/tags/${TAG}" "refs/tags/${TAG}^{}")
+          SHA=$(printf '%s\n' "$REFS" | awk -v t="refs/tags/${TAG}^{}" '$2==t {print $1}')
+          if [ -z "$SHA" ]; then
+            SHA=$(printf '%s\n' "$REFS" | awk -v t="refs/tags/${TAG}" '$2==t {print $1}')
+          fi
+          if [ -z "$SHA" ]; then
+            echo "::error::Tag ${TAG} does not resolve on the remote" >&2
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Pinning ${TAG} -> ${SHA}"
+
+      - name: Mint a scoped token for the tap
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ secrets.TAP_APP_ID }}
+          private-key: ${{ secrets.TAP_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: homebrew-mcp
+
+      - name: Check out the tap
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+        with:
+          repository: ${{ env.TAP_REPO }}
+          token: ${{ steps.app-token.outputs.token }}
+          path: tap
+
+      - name: Rewrite the formula pin
+        id: bump
+        working-directory: tap
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          SHA: ${{ steps.release.outputs.sha }}
+        run: |
+          set -euo pipefail
+          sed -i -E "s|(tag: \")[^\"]+(\")|\1${TAG}\2|; s|(revision: \")[^\"]+(\")|\1${SHA}\2|" "$FORMULA"
+          grep -qF "tag: \"${TAG}\"" "$FORMULA" \
+            || { echo "::error::tag rewrite did not apply to ${FORMULA}" >&2; exit 1; }
+          grep -qF "revision: \"${SHA}\"" "$FORMULA" \
+            || { echo "::error::revision rewrite did not apply to ${FORMULA}" >&2; exit 1; }
+
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Formula already pinned to ${TAG}; nothing to do."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff
+          fi
+
+      - name: Write the PR body
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          SHA: ${{ steps.release.outputs.sha }}
+          SOURCE_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          cat > "${RUNNER_TEMP}/pr-body.md" <<EOF
+          Pins \`eventkit-mcp-server\` to [\`${TAG}\`](https://github.com/${SOURCE_REPO}/releases/tag/${TAG}) (\`${SHA}\`).
+
+          Opened automatically by \`.github/workflows/bump-tap.yml\` in \`${SOURCE_REPO}\` on tag push.
+
+          After merging: \`brew update && brew upgrade eventkit-mcp-server\`, then restart Claude Desktop so it respawns the MCP server.
+          EOF
+
+      - name: Open or update the bump PR
+        if: steps.bump.outputs.changed == 'true'
+        working-directory: tap
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          BRANCH="bump-eventkit-mcp-server-${TAG}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git commit -am "Update eventkit-mcp-server to ${TAG}"
+          git push --force-with-lease origin "$BRANCH"
+
+          if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
+            echo "PR for ${BRANCH} already exists; the push updated it."
+          else
+            gh pr create \
+              --title "Update eventkit-mcp-server to ${TAG}" \
+              --body-file "${RUNNER_TEMP}/pr-body.md" \
+              --base main \
+              --head "$BRANCH"
+          fi
+
+      - name: Revoke the token
+        if: always() && steps.app-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: gh api --method DELETE /installation/token || true
