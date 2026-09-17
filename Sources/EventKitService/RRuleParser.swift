@@ -167,24 +167,25 @@ public enum RRuleParser {
     }
 
     private static func parseUntilDate(_ value: String) -> Date? {
-        // Try YYYYMMDDTHHMMSSZ format
-        let isoFormatter = DateFormatter()
-        isoFormatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
-        isoFormatter.timeZone = TimeZone(identifier: "UTC")
-        if let date = isoFormatter.date(from: value) {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.isLenient = false
+
+        formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        if let date = formatter.date(from: value) {
             return date
         }
 
-        // Try YYYYMMDDTHHMMSS format (local time)
-        isoFormatter.dateFormat = "yyyyMMdd'T'HHmmss"
-        isoFormatter.timeZone = TimeZone.current
-        if let date = isoFormatter.date(from: value) {
+        formatter.dateFormat = "yyyyMMdd'T'HHmmss"
+        formatter.timeZone = TimeZone.current
+        if let date = formatter.date(from: value) {
             return date
         }
 
-        // Try YYYYMMDD format
-        isoFormatter.dateFormat = "yyyyMMdd"
-        if let date = isoFormatter.date(from: value) {
+        formatter.dateFormat = "yyyyMMdd"
+        if let date = formatter.date(from: value) {
             return date
         }
 
@@ -216,12 +217,20 @@ public enum RRuleParser {
             return nil
         }
 
-        // Extract week number (optional)
+        // Extract week number (optional). An unparseable or out-of-range ordinal is
+        // rejected rather than coerced to 0, which would silently mean "every week".
+        // RFC 5545 limits BYDAY ordinals to +/-1...53.
         var weekNumber: Int = 0
         if let numRange = Range(match.range(at: 1), in: value) {
             let numStr = String(value[numRange])
-            if !numStr.isEmpty {
-                weekNumber = Int(numStr) ?? 0
+            if !numStr.isEmpty && numStr != "+" && numStr != "-" {
+                guard let parsed = Int(numStr), (1...53).contains(abs(parsed)) else {
+                    return nil
+                }
+                weekNumber = parsed
+            } else if !numStr.isEmpty {
+                // A bare sign with no digits is malformed.
+                return nil
             }
         }
 
@@ -330,7 +339,12 @@ public enum RRuleParser {
     }
 
     private static func formatUntilDate(_ date: Date) -> String {
+        // Must mirror parseUntilDate: without an explicit POSIX locale and Gregorian
+        // calendar, `yyyy` renders the era year under a non-Gregorian host calendar and
+        // the emitted RRULE will not round-trip.
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
         formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
         formatter.timeZone = TimeZone(identifier: "UTC")
         return formatter.string(from: date)

@@ -92,7 +92,7 @@ enum TestFixtures {
             location: location,
             startDate: startDate,
             isStartAllDay: isStartAllDay,
-            alarms: alarms
+            alarms: alarms?.map(ReminderAlarmModel.relative(minutesBefore:))
         )
     }
 

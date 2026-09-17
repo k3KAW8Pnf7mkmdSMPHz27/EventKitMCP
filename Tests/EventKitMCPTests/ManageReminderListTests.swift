@@ -6,6 +6,7 @@ import Testing
 @testable import EventKitService
 import MCP
 
+@MainActor
 @Suite("Manage Reminder List Handler Tests")
 struct ManageReminderListTests {
     let logger = Logger(label: "test")
@@ -194,8 +195,8 @@ struct ManageReminderListTests {
         }
     }
 
-    @Test("Action is case insensitive")
-    func testActionCaseInsensitive() async throws {
+    @Test("Action must match the advertised enum")
+    func testActionMustMatchSchemaEnum() async throws {
         let mockService = MockReminderService()
 
         let result = await handleToolCall(
@@ -210,8 +211,8 @@ struct ManageReminderListTests {
             readOnly: false
         )
 
-        #expect(result.isError == nil || result.isError == false)
-        #expect(mockService.mockLists.count == 1)
+        #expect(result.isError == true)
+        #expect(mockService.mockLists.isEmpty)
     }
 
     // MARK: - Read-only mode

@@ -12,7 +12,7 @@ struct EventKitMCPServer: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "eventkit-mcp-server",
         abstract: "MCP server for Apple Reminders via EventKit",
-        version: "1.0.0"
+        version: eventKitServiceVersion
     )
 
     @Flag(name: .shortAndLong, help: "Enable verbose logging")
@@ -77,7 +77,7 @@ struct EventKitMCPServer: AsyncParsableCommand {
         // Create MCP server with official SDK
         let server = Server(
             name: "eventkit-mcp-server",
-            version: "1.0.0",
+            version: eventKitServiceVersion,
             title: "EventKit Reminders",
             capabilities: .init(
                 tools: .init(listChanged: false)
@@ -96,8 +96,16 @@ struct EventKitMCPServer: AsyncParsableCommand {
             logger.info("Running in read-only mode - mutating operations disabled")
         }
 
-        if let ids = allowedListIds {
-            logger.info("List access restricted to \(ids.count) list(s)")
+        if allowedListIds != nil {
+            let validation = await reminderService.validateAllowedLists()
+            for id in validation.unresolvedIds {
+                logger.warning("Allowed list not found: \(id)")
+            }
+            if validation.isFatal {
+                logger.error("No configured lists resolved; refusing to start")
+                throw ExitCode.failure
+            }
+            logger.info("List access restricted to \(validation.resolvedCount) list(s)")
         }
 
         logger.info("Server configured, starting transport")
@@ -135,11 +143,16 @@ enum ToolRegistry {
         }
     }
 
-    /// Mutating tool names that should be blocked in read-only mode
-    static let mutatingTools: Set<String> = [
-        "write_reminders",
-        "manage_reminder_list"
-    ]
+    /// Tool names blocked in read-only mode, derived from each tool's own annotations.
+    ///
+    /// The advertised `readOnlyHint` is the single source of truth: a hand-maintained
+    /// name list could drift from the dispatch switch in ToolHandlers, silently leaving
+    /// a newly added mutating tool allowed.
+    static let mutatingTools: Set<String> = Set(
+        allTools()
+            .filter { $0.annotations.readOnlyHint != true }
+            .map(\.name)
+    )
 
     /// Creates all tool definitions using @Schemable-generated schemas
     static func allTools(readOnly: Bool = false) -> [Tool] {
@@ -148,9 +161,10 @@ enum ToolRegistry {
             Tool(
                 name: "query_reminders",
                 title: "Query Reminders",
-                description: "Query reminders by filter or search. Use 'filter' for time-based queries (all/overdue/today/upcoming). Use 'search' for regex matching on id/title/notes—use alternation (id1|id2|id3) to find multiple specific reminders in one call.",
+                description: "Query reminders by list, time filter, and regex search. Supplied constraints are combined. Results are paginated: limit defaults to 25 (maximum 100), and offset selects the next page. Use regex alternation (id1|id2|id3) to match multiple IDs in one call.",
                 inputSchema: SchemaHelpers.schemaToValue(QueryRemindersInput.self),
-                annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false)
+                annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false),
+                outputSchema: SchemaHelpers.schemaToValue(QueryRemindersOutput.self)
             ),
 
             // Write reminders (unified create/update/delete)
@@ -159,7 +173,8 @@ enum ToolRegistry {
                 title: "Write Reminders",
                 description: "Create, update, or delete reminders. BATCH MULTIPLE OPERATIONS in one call for efficiency. Use 'upsert' array: items without 'id' create new reminders, items with 'id' update existing. Use 'delete' array for IDs to permanently remove. PREFER marking reminders done (done: true) over deleting—done reminders preserve history and can be reviewed later. Only delete for duplicates, mistakes, or when explicitly requested.",
                 inputSchema: SchemaHelpers.schemaToValue(WriteRemindersInput.self),
-                annotations: .init(destructiveHint: true, idempotentHint: false, openWorldHint: false)
+                annotations: .init(destructiveHint: true, idempotentHint: false, openWorldHint: false),
+                outputSchema: SchemaHelpers.schemaToValue(WriteRemindersOutput.self)
             ),
 
             // List operations
@@ -168,14 +183,16 @@ enum ToolRegistry {
                 title: "Get Reminder Lists",
                 description: "Get all reminder lists",
                 inputSchema: SchemaHelpers.schemaToValue(EmptyInput.self),
-                annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false)
+                annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false),
+                outputSchema: SchemaHelpers.schemaToValue(GetReminderListsOutput.self)
             ),
             Tool(
                 name: "manage_reminder_list",
                 title: "Manage Reminder List",
                 description: "Create or delete reminder lists. Use action='create' with title (and optional color), or action='delete' with id.",
                 inputSchema: SchemaHelpers.schemaToValue(ManageReminderListInput.self),
-                annotations: .init(destructiveHint: true, idempotentHint: false, openWorldHint: false)
+                annotations: .init(destructiveHint: true, idempotentHint: false, openWorldHint: false),
+                outputSchema: SchemaHelpers.schemaToValue(ManageReminderListOutput.self)
             ),
 
             // Dashboard
@@ -184,12 +201,15 @@ enum ToolRegistry {
                 title: "Overview",
                 description: "Get a concise overview: current date/time with timezone, scheduled vs unscheduled breakdown (with overdue/today/upcoming counts), all lists with counts, high-priority unscheduled items needing attention, overdue and today's reminders with details, and upcoming week summary",
                 inputSchema: SchemaHelpers.schemaToValue(OverviewInput.self),
-                annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false)
+                annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false),
+                outputSchema: SchemaHelpers.schemaToValue(OverviewOutput.self)
             )
         ]
 
         if readOnly {
-            return tools.filter { !mutatingTools.contains($0.name) }
+            // Filter on the annotation directly rather than via `mutatingTools`, which is
+            // itself derived from this function.
+            return tools.filter { $0.annotations.readOnlyHint == true }
         }
         return tools
     }
@@ -207,15 +227,7 @@ struct SwiftLogNoOpLogHandler: LogHandler {
         set { }
     }
 
-    func log(
-        level: Logger.Level,
-        message: Logger.Message,
-        metadata: Logger.Metadata?,
-        source: String,
-        file: String,
-        function: String,
-        line: UInt
-    ) {
+    func log(event: LogEvent) {
         // Discard all logs
     }
 }

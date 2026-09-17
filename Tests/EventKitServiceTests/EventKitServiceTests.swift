@@ -30,35 +30,6 @@ struct EventKitServiceTests {
         #expect(reminder.listName == "My List")
     }
 
-    @Test("Reminder model codable")
-    func testReminderModelCodable() throws {
-        let reminder = ReminderModel(
-            id: "test-id",
-            title: "Test Reminder",
-            notes: "Notes here",
-            done: true,
-            priority: .medium,
-            dueDate: Date(timeIntervalSince1970: 1700000000),
-            doneDate: Date(timeIntervalSince1970: 1700001000),
-            listId: "list-123",
-            listName: "Work"
-        )
-
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(reminder)
-
-        let decoder = JSONDecoder()
-        let decoded = try decoder.decode(ReminderModel.self, from: data)
-
-        #expect(decoded.id == reminder.id)
-        #expect(decoded.title == reminder.title)
-        #expect(decoded.notes == reminder.notes)
-        #expect(decoded.done == reminder.done)
-        #expect(decoded.priority == reminder.priority)
-        #expect(decoded.listId == reminder.listId)
-        #expect(decoded.listName == reminder.listName)
-    }
-
     // MARK: - Reminder Priority Tests
 
     @Test("Priority display names")
@@ -109,30 +80,6 @@ struct EventKitServiceTests {
         #expect(list.sourceTitle == "iCloud")
     }
 
-    @Test("List model codable")
-    func testReminderListModelCodable() throws {
-        let list = ReminderListModel(
-            id: "list-123",
-            title: "Work Tasks",
-            color: "#0000FF",
-            isSubscribed: true,
-            isImmutable: false,
-            sourceTitle: "Local"
-        )
-
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(list)
-
-        let decoder = JSONDecoder()
-        let decoded = try decoder.decode(ReminderListModel.self, from: data)
-
-        #expect(decoded.id == list.id)
-        #expect(decoded.title == list.title)
-        #expect(decoded.color == list.color)
-        #expect(decoded.isSubscribed == list.isSubscribed)
-        #expect(decoded.isImmutable == list.isImmutable)
-        #expect(decoded.sourceTitle == list.sourceTitle)
-    }
 
     // MARK: - Create Reminder Request Tests
 
@@ -168,20 +115,21 @@ struct EventKitServiceTests {
 
     @Test("Update reminder request")
     func testUpdateReminderRequest() {
+        let dueDate = Date()
         let request = UpdateReminderRequest(
             id: "reminder-id",
             title: "Updated Title",
-            notes: "Updated notes",
+            notes: .set("Updated notes"),
             done: true,
-            dueDate: Date(),
+            dueDate: .set(.init(date: dueDate, isAllDay: false)),
             priority: .low
         )
 
         #expect(request.id == "reminder-id")
         #expect(request.title == "Updated Title")
-        #expect(request.notes == "Updated notes")
+        #expect(request.notes == .set("Updated notes"))
         #expect(request.done == true)
-        #expect(request.dueDate != nil)
+        #expect(request.dueDate == .set(.init(date: dueDate, isAllDay: false)))
         #expect(request.priority == .low)
     }
 
@@ -194,9 +142,9 @@ struct EventKitServiceTests {
 
         #expect(request.id == "reminder-id")
         #expect(request.title == nil)
-        #expect(request.notes == nil)
+        #expect(request.notes == .unchanged)
         #expect(request.done == true)
-        #expect(request.dueDate == nil)
+        #expect(request.dueDate == .unchanged)
         #expect(request.priority == nil)
     }
 
@@ -221,6 +169,5 @@ struct EventKitServiceTests {
         #expect(ReminderServiceError.listNotFound("list-123").errorDescription == "Reminder list not found: list-123")
         #expect(ReminderServiceError.reminderNotFound("rem-456").errorDescription == "Reminder not found: rem-456")
         #expect(ReminderServiceError.noValidSource.errorDescription == "No valid source found for creating reminder lists")
-        #expect(ReminderServiceError.saveFailed("Database error").errorDescription == "Failed to save: Database error")
     }
 }

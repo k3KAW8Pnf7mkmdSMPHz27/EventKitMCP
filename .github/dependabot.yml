@@ -1,0 +1,31 @@
+version: 2
+
+updates:
+  - package-ecosystem: swift
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Chicago
+    open-pull-requests-limit: 3
+    groups:
+      apple-swift:
+        patterns:
+          - swift-log
+          - swift-argument-parser
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Chicago
+    groups:
+      actions:
+        patterns:
+          - "*"

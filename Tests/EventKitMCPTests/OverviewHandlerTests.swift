@@ -6,6 +6,7 @@ import Testing
 @testable import EventKitService
 import MCP
 
+@MainActor
 @Suite("Overview Handler Tests")
 struct OverviewHandlerTests {
     let logger = Logger(label: "test")
@@ -14,7 +15,7 @@ struct OverviewHandlerTests {
     func testEmptyState() async throws {
         let mockService = MockReminderService()
 
-        let result = try await handleToolCall(
+        let result = await handleToolCall(
             name: "overview",
             arguments: nil,
             reminderService: mockService,
@@ -43,7 +44,7 @@ struct OverviewHandlerTests {
     func testTimezoneInHeader() async throws {
         let mockService = MockReminderService()
 
-        let result = try await handleToolCall(
+        let result = await handleToolCall(
             name: "overview",
             arguments: nil,
             reminderService: mockService,
@@ -76,7 +77,7 @@ struct OverviewHandlerTests {
             ReminderModel(id: "r3", title: "Task 3", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-2", listName: "Personal")
         ]
 
-        let result = try await handleToolCall(
+        let result = await handleToolCall(
             name: "overview",
             arguments: nil,
             reminderService: mockService,
@@ -107,7 +108,7 @@ struct OverviewHandlerTests {
             ReminderModel(id: "r1", title: "Task 1", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Work")
         ]
 
-        let result = try await handleToolCall(
+        let result = await handleToolCall(
             name: "overview",
             arguments: nil,
             reminderService: mockService,
@@ -138,7 +139,7 @@ struct OverviewHandlerTests {
             ReminderModel(id: "r1", title: "Overdue Task", notes: nil, done: false, priority: .high, dueDate: yesterday, listId: "list-1", listName: "Work")
         ]
 
-        let result = try await handleToolCall(
+        let result = await handleToolCall(
             name: "overview",
             arguments: nil,
             reminderService: mockService,
@@ -168,7 +169,7 @@ struct OverviewHandlerTests {
             ReminderModel(id: "r1", title: "Today Task", notes: nil, done: false, priority: .none, dueDate: todayNoon, listId: "list-1", listName: "Work")
         ]
 
-        let result = try await handleToolCall(
+        let result = await handleToolCall(
             name: "overview",
             arguments: nil,
             reminderService: mockService,
@@ -198,7 +199,7 @@ struct OverviewHandlerTests {
             ReminderModel(id: "r2", title: "Medium No Date", notes: nil, done: false, priority: .medium, dueDate: nil, listId: "list-1", listName: "Work")
         ]
 
-        let result = try await handleToolCall(
+        let result = await handleToolCall(
             name: "overview",
             arguments: nil,
             reminderService: mockService,
@@ -231,7 +232,7 @@ struct OverviewHandlerTests {
             ReminderModel(id: "r3", title: "Day After", notes: nil, done: false, priority: .none, dueDate: dayAfter, listId: "list-1", listName: "Work")
         ]
 
-        let result = try await handleToolCall(
+        let result = await handleToolCall(
             name: "overview",
             arguments: nil,
             reminderService: mockService,
@@ -261,7 +262,7 @@ struct OverviewHandlerTests {
             ReminderModel(id: "r2", title: "Done", notes: nil, done: true, priority: .none, dueDate: nil, listId: "list-1", listName: "Work")
         ]
 
-        let result = try await handleToolCall(
+        let result = await handleToolCall(
             name: "overview",
             arguments: nil,
             reminderService: mockService,
@@ -294,7 +295,7 @@ struct OverviewHandlerTests {
             ReminderModel(id: "r3", title: "Normal Task", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Work")
         ]
 
-        let result = try await handleToolCall(
+        let result = await handleToolCall(
             name: "overview",
             arguments: nil,
             reminderService: mockService,
@@ -323,7 +324,7 @@ struct OverviewHandlerTests {
             ReminderModel(id: "r\(i)", title: "Overdue Task \(i)", notes: nil, done: false, priority: .none, dueDate: yesterday, listId: "list-1", listName: "Work")
         }
 
-        let result = try await handleToolCall(
+        let result = await handleToolCall(
             name: "overview",
             arguments: nil,
             reminderService: mockService,

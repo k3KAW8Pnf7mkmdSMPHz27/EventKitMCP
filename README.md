@@ -17,8 +17,8 @@ This MCP server allows AI assistants to interact with Apple Reminders, enabling 
 ## Requirements
 
 - macOS 14.0 or later
-- Swift 6.0 or later
-- Xcode 16.0 or later (for development)
+- Swift 6.2 or later for development
+- Xcode 26 or later for development
 
 ## Installation
 
@@ -94,13 +94,18 @@ With list restrictions:
 
 The server requires access to Reminders. On first run, macOS will prompt you to grant permission. You can also grant access manually in:
 
-**System Preferences → Privacy & Security → Reminders**
+**System Settings → Privacy & Security → Reminders**
+
+EventKit grants reminder access to the server process. If the prompt was dismissed or
+denied, enable the terminal or host application that launches the server, then restart it.
+Location alarms can include precise coordinates and are returned only through this
+already-authorized Reminders tool surface.
 
 ## Available Tools
 
 | Tool | Description |
 |------|-------------|
-| `query_reminders` | Query reminders by IDs, filter (all/overdue/today/upcoming), or search (regex). Priority: ids > search > filter |
+| `query_reminders` | Query reminders by list, filter (all/overdue/today/upcoming), and regex search; supplied constraints are combined and results are paginated |
 | `write_reminders` | Create, update, or delete reminders. Uses `upsert` array (no id = create, with id = update) and `delete` array for IDs to remove |
 | `get_reminder_lists` | Get all reminder lists |
 | `manage_reminder_list` | Create or delete reminder lists (action='create' with title, or action='delete' with id) |
@@ -120,12 +125,28 @@ The server requires access to Reminders. On first run, macOS will prompt you to 
 // Get upcoming reminders (next 14 days)
 { "name": "query_reminders", "arguments": { "filter": "upcoming", "days": 14 } }
 
+// Retrieve up to 25 reminders by default; request subsequent pages with offset
+{ "name": "query_reminders", "arguments": { "limit": 25, "offset": 25 } }
+
 // Search by regex
 { "name": "query_reminders", "arguments": { "search": "grocery|shopping" } }
 
-// Get specific reminders by ID
-{ "name": "query_reminders", "arguments": { "ids": ["id1", "id2"] } }
+// Search within overdue reminders in one list
+{
+  "name": "query_reminders",
+  "arguments": {
+    "listId": "list-id",
+    "filter": "overdue",
+    "search": "invoice|renewal"
+  }
+}
+
+// Match one or more IDs with the regex search field
+{ "name": "query_reminders", "arguments": { "search": "id1|id2" } }
 ```
+
+Query responses include `count`, `totalCount`, `offset`, and `hasMore` so clients can
+continue without placing the entire reminders database in one model context.
 
 ### Write Reminders (Create/Update/Delete)
 
@@ -175,6 +196,33 @@ The server requires access to Reminders. On first run, macOS will prompt you to 
 }
 ```
 
+### Supported reminder fields
+
+The write and query tools preserve titles, notes, completion state, priority, list,
+due date, start date, independent IANA time zones, all-day flags, location text, URL,
+RFC 5545 recurrence, and relative, absolute, or geofence alarms.
+
+Updates use three-state patch semantics for nullable fields: omit a property to leave
+it unchanged, send JSON `null` to clear it, or send a value to replace it. This applies
+to `notes`, `dueDate`, `location`, `url`, `startDate`, `recurrence`, and `alarms`.
+URLs must include a scheme, and time zones must be valid IANA identifiers such as
+`America/Chicago`.
+
+Alarms use one of these tagged object shapes:
+
+```json
+{ "kind": "relative", "minutesBefore": 15 }
+{ "kind": "absolute", "absoluteDate": "2026-09-03T17:00:00Z" }
+{
+  "kind": "location",
+  "proximity": "enter",
+  "title": "Office",
+  "latitude": 41.8781,
+  "longitude": -87.6298,
+  "radius": 100
+}
+```
+
 ### Manage Lists
 
 ```json
@@ -196,6 +244,9 @@ The server requires access to Reminders. On first run, macOS will prompt you to 
 
 ## Development
 
+The supported development baseline is Xcode 26 with Swift 6.2 or newer. The runtime
+deployment target remains macOS 14. Dependencies are pinned in `Package.resolved`.
+
 ```bash
 swift build              # Build
 swift test               # Run tests
@@ -203,6 +254,9 @@ swift build -c release   # Build release
 
 # Interactive debugging with MCP Inspector
 npx @modelcontextprotocol/inspector .build/debug/eventkit-mcp-server
+
+# Verify the read-only surface (query, lists, and overview only)
+npx @modelcontextprotocol/inspector .build/debug/eventkit-mcp-server --read-only
 ```
 
 ## License
