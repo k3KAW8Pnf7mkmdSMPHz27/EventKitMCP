@@ -73,3 +73,31 @@ struct ListAccessPolicyTests {
         #expect(!AllowedListValidation.unrestricted.isFatal)
     }
 }
+
+@Suite("Access denied error surface tests")
+struct AccessDeniedErrorTests {
+    @Test("A denied reminder is indistinguishable from a missing one")
+    func deniedReminderLooksMissing() {
+        // The oracle this closes: a caller that could tell "denied" from "not found"
+        // could confirm that a guessed reminder ID exists outside its allowed lists.
+        let denied = ReminderServiceError.reminderAccessDenied.errorDescription
+        #expect(denied == "Reminder not found or not accessible")
+    }
+
+    @Test("A denied reminder error carries no identifier")
+    func deniedReminderCarriesNoIdentifier() {
+        // Previously this threw listAccessDenied(calendarIdentifier), handing back the
+        // ID of a list the allowlist exists to withhold.
+        let message = ReminderServiceError.reminderAccessDenied.errorDescription ?? ""
+        #expect(!message.contains("list"))
+        #expect(!message.contains("-"))
+    }
+
+    @Test("A caller-supplied list ID is still echoed for diagnosis")
+    func callerSuppliedListIdIsEchoed() {
+        // The caller already knows this ID -- it came from their request -- so naming it
+        // aids diagnosis without disclosing anything new.
+        let message = ReminderServiceError.listAccessDenied("list-1").errorDescription ?? ""
+        #expect(message.contains("list-1"))
+    }
+}

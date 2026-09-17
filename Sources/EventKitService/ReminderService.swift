@@ -345,9 +345,11 @@ public actor ReminderService: ReminderServiceProtocol {
         guard let item = eventStore.calendarItem(withIdentifier: id) as? EKReminder else {
             return nil
         }
-        // Check if reminder's list is allowed
+        // Report an out-of-allowlist reminder exactly as a missing one. Throwing here
+        // while a nonexistent ID returns nil would confirm that a reminder exists
+        // outside the caller's permitted lists.
         guard isListAllowed(id: item.calendar.calendarIdentifier) else {
-            throw ReminderServiceError.listAccessDenied(item.calendar.calendarIdentifier)
+            return nil
         }
         return Self.mapReminderToModel(item)
     }
@@ -433,9 +435,9 @@ public actor ReminderService: ReminderServiceProtocol {
             throw ReminderServiceError.reminderNotFound(request.id)
         }
 
-        // Verify current list is allowed
+        // Verify current list is allowed, without disclosing which list holds it.
         guard isListAllowed(id: reminder.calendar.calendarIdentifier) else {
-            throw ReminderServiceError.listAccessDenied(reminder.calendar.calendarIdentifier)
+            throw ReminderServiceError.reminderAccessDenied
         }
 
         if let title = request.title {
@@ -552,7 +554,7 @@ public actor ReminderService: ReminderServiceProtocol {
         }
 
         guard isListAllowed(id: reminder.calendar.calendarIdentifier) else {
-            throw ReminderServiceError.listAccessDenied(reminder.calendar.calendarIdentifier)
+            throw ReminderServiceError.reminderAccessDenied
         }
 
         // Capture reminder data before deletion
@@ -782,8 +784,11 @@ public actor ReminderService: ReminderServiceProtocol {
         var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
         hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
 
+        // Reject rather than silently yielding black: the return type promises failure is
+        // representable, and callers outside this module do not pass through requireColor.
+        guard hexSanitized.count == 6 else { return nil }
         var rgb: UInt64 = 0
-        Scanner(string: hexSanitized).scanHexInt64(&rgb)
+        guard Scanner(string: hexSanitized).scanHexInt64(&rgb) else { return nil }
 
         let red = CGFloat((rgb & 0xFF0000) >> 16) / 255.0
         let green = CGFloat((rgb & 0x00FF00) >> 8) / 255.0
@@ -816,6 +821,11 @@ public enum ReminderServiceError: Error, LocalizedError, Equatable {
     case reminderNotFound(String)
     case noValidSource
     case listAccessDenied(String)
+    /// A reminder exists but sits outside the allowlist.
+    ///
+    /// Deliberately carries no identifier: the caller supplied a reminder ID, so echoing
+    /// the owning list would disclose a list the allowlist exists to withhold.
+    case reminderAccessDenied
     case listCreationBlocked
     case invalidURL(String)
     case invalidTimeZone(String)
@@ -835,6 +845,10 @@ public enum ReminderServiceError: Error, LocalizedError, Equatable {
             return "No valid source found for creating reminder lists"
         case .listAccessDenied(let id):
             return "Access to reminder list '\(id)' is not allowed"
+        case .reminderAccessDenied:
+            // Must match reminderNotFound's shape: distinguishing "exists but denied"
+            // from "does not exist" confirms reminders outside the allowlist.
+            return "Reminder not found or not accessible"
         case .listCreationBlocked:
             return "Creating new reminder lists is not allowed when --allowed-lists is active"
         case .invalidURL(let value):

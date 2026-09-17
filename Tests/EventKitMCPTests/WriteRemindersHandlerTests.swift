@@ -45,6 +45,51 @@ struct WriteRemindersHandlerTests {
         #expect(service.mockReminders[0].startTimeZone == "Europe/Paris")
     }
 
+    @Test("Oversized batches are rejected before any EventKit work")
+    func rejectsOversizedBatch() async {
+        let service = MockReminderService()
+        let items = (0..<101).map { index in
+            Value.object(["title": .string("Item \(index)")])
+        }
+
+        let result = await callTool("write_reminders", arguments: [
+            "upsert": .array(items)
+        ], reminderService: service)
+
+        result.expectError(containing: "At most 100")
+        // Nothing should have been written.
+        #expect(service.mockReminders.isEmpty)
+    }
+
+    @Test("A batch at the limit is accepted")
+    func acceptsBatchAtLimit() async {
+        let service = MockReminderService()
+        let items = (0..<100).map { index in
+            Value.object(["title": .string("Item \(index)")])
+        }
+
+        let result = await callTool("write_reminders", arguments: [
+            "upsert": .array(items)
+        ], reminderService: service)
+
+        result.expectSuccess()
+        #expect(service.mockReminders.count == 100)
+    }
+
+    @Test("The combined upsert and delete count is what is bounded")
+    func boundsCombinedBatchCount() async {
+        let service = MockReminderService()
+        let upserts = (0..<60).map { Value.object(["title": .string("Item \($0)")]) }
+        let deletes = (0..<60).map { Value.string("missing-\($0)") }
+
+        let result = await callTool("write_reminders", arguments: [
+            "upsert": .array(upserts),
+            "delete": .array(deletes)
+        ], reminderService: service)
+
+        result.expectError(containing: "At most 100")
+    }
+
     @Test("A date-only due date anchors to the supplied time zone, not the server's")
     func dateOnlyAnchorsToSuppliedTimeZone() async throws {
         let service = MockReminderService()

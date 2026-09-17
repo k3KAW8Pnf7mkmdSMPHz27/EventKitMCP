@@ -400,6 +400,10 @@ private func handleGetLists(reminderService: ReminderServiceProtocol) async thro
     )
 }
 
+/// Upper bound on combined upsert and delete operations in one write_reminders call.
+/// Matches the query pagination ceiling.
+private let maximumBatchSize = 100
+
 private func handleWriteReminders(
     _ arguments: [String: Value]?,
     reminderService: ReminderServiceProtocol
@@ -409,6 +413,17 @@ private func handleWriteReminders(
 
     if upsertArray.isEmpty && deleteArray.isEmpty {
         return .invalidParameter("input", value: "{}", expected: "At least one of 'upsert' or 'delete' required")
+    }
+
+    // Each element is a serialized EventKit write behind the operation gate, so an
+    // unbounded batch pushes concurrent callers into operationTimedOut.
+    let batchCount = upsertArray.count + deleteArray.count
+    if batchCount > maximumBatchSize {
+        return .invalidParameter(
+            "input",
+            value: "\(batchCount) operations",
+            expected: "At most \(maximumBatchSize) combined 'upsert' and 'delete' operations per call"
+        )
     }
 
     // Track results
