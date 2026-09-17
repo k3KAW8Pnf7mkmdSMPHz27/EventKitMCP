@@ -143,11 +143,16 @@ enum ToolRegistry {
         }
     }
 
-    /// Mutating tool names that should be blocked in read-only mode
-    static let mutatingTools: Set<String> = [
-        "write_reminders",
-        "manage_reminder_list"
-    ]
+    /// Tool names blocked in read-only mode, derived from each tool's own annotations.
+    ///
+    /// The advertised `readOnlyHint` is the single source of truth: a hand-maintained
+    /// name list could drift from the dispatch switch in ToolHandlers, silently leaving
+    /// a newly added mutating tool allowed.
+    static let mutatingTools: Set<String> = Set(
+        allTools()
+            .filter { $0.annotations.readOnlyHint != true }
+            .map(\.name)
+    )
 
     /// Creates all tool definitions using @Schemable-generated schemas
     static func allTools(readOnly: Bool = false) -> [Tool] {
@@ -202,7 +207,9 @@ enum ToolRegistry {
         ]
 
         if readOnly {
-            return tools.filter { !mutatingTools.contains($0.name) }
+            // Filter on the annotation directly rather than via `mutatingTools`, which is
+            // itself derived from this function.
+            return tools.filter { $0.annotations.readOnlyHint == true }
         }
         return tools
     }

@@ -65,6 +65,26 @@ struct ToolSchemaContractTests {
         ])
     }
 
+    @Test("Every tool declares a mutation stance, and the read-only gate matches it")
+    func mutationStanceIsDeclaredAndEnforced() {
+        // The gate is derived from `readOnlyHint`, so a tool that declares neither
+        // readOnlyHint nor destructiveHint would be classified by omission rather than
+        // intent. Require the stance to be explicit.
+        for tool in ToolRegistry.allTools() {
+            let isReadOnly = tool.annotations.readOnlyHint == true
+            let isDestructive = tool.annotations.destructiveHint == true
+            #expect(
+                isReadOnly != isDestructive,
+                "\(tool.name) must declare exactly one of readOnlyHint or destructiveHint"
+            )
+            #expect(ToolRegistry.mutatingTools.contains(tool.name) == !isReadOnly)
+        }
+
+        // Read-only listing and the call guard must agree on every tool.
+        let exposed = Set(ToolRegistry.allTools(readOnly: true).map(\.name))
+        #expect(exposed.isDisjoint(with: ToolRegistry.mutatingTools))
+    }
+
     @Test("Generated input schemas expose enum and expanded reminder fields")
     func inputContracts() throws {
         let encoder = JSONEncoder()
