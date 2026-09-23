@@ -80,17 +80,22 @@ struct AccessDeniedErrorTests {
     func deniedReminderLooksMissing() {
         // The oracle this closes: a caller that could tell "denied" from "not found"
         // could confirm that a guessed reminder ID exists outside its allowed lists.
-        let denied = ReminderServiceError.reminderAccessDenied.errorDescription
-        #expect(denied == "Reminder not found or not accessible")
+        // Compare against the not-found message itself, not a copy of its text, so the
+        // two can't drift apart unnoticed.
+        for id in ["rem-456", "x-coredata://ABC/REMCDReminder/p1"] {
+            #expect(
+                ReminderServiceError.reminderAccessDenied(id).errorDescription
+                    == ReminderServiceError.reminderNotFound(id).errorDescription
+            )
+        }
     }
 
-    @Test("A denied reminder error carries no identifier")
-    func deniedReminderCarriesNoIdentifier() {
+    @Test("A denied reminder error names only the caller's reminder ID")
+    func deniedReminderNamesOnlyCallersId() {
         // Previously this threw listAccessDenied(calendarIdentifier), handing back the
         // ID of a list the allowlist exists to withhold.
-        let message = ReminderServiceError.reminderAccessDenied.errorDescription ?? ""
-        #expect(!message.contains("list"))
-        #expect(!message.contains("-"))
+        let message = ReminderServiceError.reminderAccessDenied("rem-456").errorDescription
+        #expect(message == "Reminder not found: rem-456")
     }
 
     @Test("A caller-supplied list ID is still echoed for diagnosis")

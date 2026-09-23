@@ -437,7 +437,7 @@ public actor ReminderService: ReminderServiceProtocol {
 
         // Verify current list is allowed, without disclosing which list holds it.
         guard isListAllowed(id: reminder.calendar.calendarIdentifier) else {
-            throw ReminderServiceError.reminderAccessDenied
+            throw ReminderServiceError.reminderAccessDenied(request.id)
         }
 
         if let title = request.title {
@@ -554,7 +554,7 @@ public actor ReminderService: ReminderServiceProtocol {
         }
 
         guard isListAllowed(id: reminder.calendar.calendarIdentifier) else {
-            throw ReminderServiceError.reminderAccessDenied
+            throw ReminderServiceError.reminderAccessDenied(id)
         }
 
         // Capture reminder data before deletion
@@ -823,9 +823,10 @@ public enum ReminderServiceError: Error, LocalizedError, Equatable {
     case listAccessDenied(String)
     /// A reminder exists but sits outside the allowlist.
     ///
-    /// Deliberately carries no identifier: the caller supplied a reminder ID, so echoing
-    /// the owning list would disclose a list the allowlist exists to withhold.
-    case reminderAccessDenied
+    /// Carries only the caller-supplied reminder ID and describes itself exactly as
+    /// `reminderNotFound`, so a caller can't confirm that a guessed ID exists outside its
+    /// allowed lists, nor learn which list holds it.
+    case reminderAccessDenied(String)
     case listCreationBlocked
     case invalidURL(String)
     case invalidTimeZone(String)
@@ -839,16 +840,12 @@ public enum ReminderServiceError: Error, LocalizedError, Equatable {
             return "Access to reminders was denied"
         case .listNotFound(let id):
             return "Reminder list not found: \(id)"
-        case .reminderNotFound(let id):
+        case .reminderNotFound(let id), .reminderAccessDenied(let id):
             return "Reminder not found: \(id)"
         case .noValidSource:
             return "No valid source found for creating reminder lists"
         case .listAccessDenied(let id):
             return "Access to reminder list '\(id)' is not allowed"
-        case .reminderAccessDenied:
-            // Must match reminderNotFound's shape: distinguishing "exists but denied"
-            // from "does not exist" confirms reminders outside the allowlist.
-            return "Reminder not found or not accessible"
         case .listCreationBlocked:
             return "Creating new reminder lists is not allowed when --allowed-lists is active"
         case .invalidURL(let value):
