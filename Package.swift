@@ -31,7 +31,7 @@ let package = Package(
         // JSON Schema generation with @Schemable macro
         .package(
             url: "https://github.com/ajevans99/swift-json-schema.git",
-            .upToNextMinor(from: "0.13.1")
+            .upToNextMinor(from: "0.14.1")
         )
     ],
     targets: [
