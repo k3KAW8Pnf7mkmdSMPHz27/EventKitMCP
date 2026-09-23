@@ -1,0 +1,20 @@
+# semantic-release: runs from the `release` job in .github/workflows/ci.yml.
+branches: [main]
+tagFormat: v${version}
+
+# Listed explicitly: the default set includes @semantic-release/npm, which would
+# try to publish this Swift package's tooling manifest.
+plugins:
+  # The default `angular` preset can't parse `feat!:`, so a breaking title would
+  # silently release nothing. `conventionalcommits` parses the `!` marker.
+  # Release rules stay the analyzer's defaults: breaking major, feat minor,
+  # fix/perf/revert patch, anything else none.
+  - - "@semantic-release/commit-analyzer"
+    - preset: conventionalcommits
+  - - "@semantic-release/release-notes-generator"
+    - preset: conventionalcommits
+  # The release token can write contents and pull requests only, so skip the
+  # features that need issues: the failure issue and the `released` label.
+  - - "@semantic-release/github"
+    - failComment: false
+      releasedLabels: false

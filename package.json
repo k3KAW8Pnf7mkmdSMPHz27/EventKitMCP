@@ -1,0 +1,17 @@
+{
+  "name": "eventkit-mcp-release",
+  "private": true,
+  "description": "Release tooling only. The server is a Swift package; this pins semantic-release for CI.",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/k3KAW8Pnf7mkmdSMPHz27/EventKitMCP.git"
+  },
+  "engines": {
+    "node": "^22.14.0 || >=24.10.0"
+  },
+  "devDependencies": {
+    "conventional-changelog-conventionalcommits": "9.3.1",
+    "semantic-release": "25.0.9"
+  }
+}

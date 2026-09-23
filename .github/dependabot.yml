@@ -9,6 +9,10 @@ updates:
       time: "09:00"
       timezone: America/Chicago
     open-pull-requests-limit: 3
+    # Package bumps change the shipped binary, so they release a patch.
+    commit-message:
+      prefix: fix
+      include: scope
     groups:
       apple-swift:
         patterns:
@@ -25,7 +29,33 @@ updates:
       day: monday
       time: "09:00"
       timezone: America/Chicago
+    # Workflow bumps never touch the binary, so they don't release.
+    commit-message:
+      prefix: ci
+      include: scope
     groups:
       actions:
         patterns:
           - "*"
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Chicago
+    # Release tooling never ships in the binary, so its bumps don't release.
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      release-tooling:
+        patterns:
+          - "*"
+    # Preset 10 needs conventional-changelog-writer 9, but semantic-release's
+    # notes generator (14.1.1) still ships writer 8, so release notes crash and
+    # nothing is tagged. Lift this once the generator moves to writer 9.
+    ignore:
+      - dependency-name: conventional-changelog-conventionalcommits
+        update-types: ["version-update:semver-major"]
