@@ -72,3 +72,6 @@ dist/
 
 # Claude Code local settings (never publish - can contain machine paths)
 .claude/
+
+# Release tooling (semantic-release), installed by CI from package-lock.json
+node_modules/

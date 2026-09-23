@@ -37,3 +37,25 @@ updates:
       actions:
         patterns:
           - "*"
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Chicago
+    # Release tooling never ships in the binary, so its bumps don't release.
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      release-tooling:
+        patterns:
+          - "*"
+    # Preset 10 needs conventional-changelog-writer 9, but semantic-release's
+    # notes generator (14.1.1) still ships writer 8, so release notes crash and
+    # nothing is tagged. Lift this once the generator moves to writer 9.
+    ignore:
+      - dependency-name: conventional-changelog-conventionalcommits
+        update-types: ["version-update:semver-major"]

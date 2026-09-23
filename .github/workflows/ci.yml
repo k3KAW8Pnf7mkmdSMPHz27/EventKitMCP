@@ -21,3 +21,42 @@ jobs:
         run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
       - name: Schema contract tests
         run: swift test --filter ToolSchemaContractTests
+
+  # Tags and publishes a GitHub Release once build-and-test has passed on this
+  # exact commit. The version comes from the conventional commit subjects since
+  # the last tag, which squash-only merging makes the PR titles (pr-title.yml).
+  release:
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    steps:
+      # An App token rather than GITHUB_TOKEN: events from GITHUB_TOKEN don't
+      # start other workflows, and the tag this pushes has to fire bump-tap.yml.
+      - name: Mint a release token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ secrets.TAP_APP_ID }}
+          private-key: ${{ secrets.TAP_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: EventKitMCP
+          permission-contents: write
+          permission-pull-requests: write
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 22
+      - name: Install release tooling
+        run: npm clean-install --ignore-scripts
+      - name: Verify registry signatures of the release tooling
+        run: npm audit signatures
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: npx semantic-release
