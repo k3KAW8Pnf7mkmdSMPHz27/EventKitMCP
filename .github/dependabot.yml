@@ -12,8 +12,8 @@ updates:
     groups:
       apple-swift:
         patterns:
-          - swift-log
-          - swift-argument-parser
+          - github.com/apple/swift-log
+          - github.com/apple/swift-argument-parser
         update-types:
           - minor
           - patch
