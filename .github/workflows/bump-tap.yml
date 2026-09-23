@@ -51,6 +51,39 @@ jobs:
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "Pinning ${TAG} -> ${SHA}"
 
+      # The binary reports eventKitServiceVersion from --version and in MCP
+      # serverInfo, while Homebrew reports the tag. Refuse a tag they disagree on.
+      - name: Check the version string matches the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_REPO: ${{ github.repository }}
+          TAG: ${{ steps.release.outputs.tag }}
+          SHA: ${{ steps.release.outputs.sha }}
+          VERSION_FILE: Sources/EventKitService/EventKitService.swift
+        run: |
+          set -euo pipefail
+          SRC="${RUNNER_TEMP}/version-source.swift"
+          if ! gh api -H 'Accept: application/vnd.github.raw+json' \
+                 "repos/${SOURCE_REPO}/contents/${VERSION_FILE}?ref=${SHA}" > "$SRC"; then
+            echo "::error::Could not read ${VERSION_FILE} at ${TAG} (${SHA})" >&2
+            exit 1
+          fi
+
+          DECL='^[[:space:]]*public[[:space:]]+let[[:space:]]+eventKitServiceVersion[[:space:]]*=[[:space:]]*"[^"]*"'
+          COUNT=$(grep -cE -e "$DECL" < "$SRC" || true)
+          if [ "$COUNT" != "1" ]; then
+            echo "::error::Expected exactly one 'public let eventKitServiceVersion = \"...\"' in ${VERSION_FILE} at ${TAG}, found ${COUNT:-none}" >&2
+            exit 1
+          fi
+
+          HAVE=$(grep -E -e "$DECL" < "$SRC" | cut -d '"' -f 2)
+          WANT="${TAG#v}"
+          if [ "$HAVE" != "$WANT" ]; then
+            echo "::error::${VERSION_FILE} at ${TAG} declares eventKitServiceVersion = \"${HAVE}\", but the tag says ${WANT}. Bump the string to \"${WANT}\" on main, then re-tag ${TAG} on that commit." >&2
+            exit 1
+          fi
+          echo "eventKitServiceVersion at ${TAG} is \"${HAVE}\"; matches the tag."
+
       - name: Mint a scoped token for the tap
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
