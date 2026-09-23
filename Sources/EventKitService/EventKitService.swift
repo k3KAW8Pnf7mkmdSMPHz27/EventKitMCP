@@ -13,4 +13,6 @@ public typealias Reminder = ReminderModel
 public typealias ReminderList = ReminderListModel
 
 // Version Info
-public let eventKitServiceVersion = "1.0.0"
+// A placeholder for local builds. Releases are cut by tagging, and the Homebrew
+// formula writes the tag's version here before building.
+public let eventKitServiceVersion = "0.0.0-dev"

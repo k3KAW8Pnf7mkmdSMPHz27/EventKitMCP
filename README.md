@@ -259,6 +259,24 @@ npx @modelcontextprotocol/inspector .build/debug/eventkit-mcp-server
 npx @modelcontextprotocol/inspector .build/debug/eventkit-mcp-server --read-only
 ```
 
+### Releases
+
+Every merge to `main` is squashed, so the PR title becomes the commit subject, and
+titles must be [conventional commits](https://www.conventionalcommits.org/). When CI
+passes on `main`, the release workflow tags a new version from the commits since the
+last tag:
+
+| Title | Release |
+|---|---|
+| `feat: ...` | minor |
+| `fix: ...`, `perf: ...` | patch |
+| `feat!: ...`, or a `BREAKING CHANGE:` footer | major |
+| `docs:`, `ci:`, `chore:`, `refactor:`, `test:`, ... | none |
+
+A `Release-As: X.Y.Z` line in the PR description forces a specific version. The
+version string in the source is a placeholder; Homebrew builds write the tag's
+version into it.
+
 ## License
 
 See [LICENSE](LICENSE) for details.
