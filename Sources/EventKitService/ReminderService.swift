@@ -112,6 +112,7 @@ public actor ReminderService: ReminderServiceProtocol {
     }
 
     private let eventStore: EKEventStore
+    private let reminderStore: any ReminderStore
     private let logger: Logger
     private let listAccess: ListAccessPolicy
     private let operationGate = EventStoreOperationGate()
@@ -123,7 +124,24 @@ public actor ReminderService: ReminderServiceProtocol {
         allowedListIds: Set<String>? = nil,
         operationTimeout: Duration = .seconds(15)
     ) {
-        self.eventStore = EKEventStore()
+        self.init(
+            eventStore: EKEventStore(),
+            reminderStore: nil,
+            logger: logger,
+            allowedListIds: allowedListIds,
+            operationTimeout: operationTimeout
+        )
+    }
+
+    init(
+        eventStore: EKEventStore,
+        reminderStore: (any ReminderStore)?,
+        logger: Logger = Logger(label: "eventkit.reminder-service"),
+        allowedListIds: Set<String>? = nil,
+        operationTimeout: Duration = .seconds(15)
+    ) {
+        self.eventStore = eventStore
+        self.reminderStore = reminderStore ?? eventStore
         self.logger = logger
         self.listAccess = ListAccessPolicy(allowedIds: allowedListIds)
         self.operationTimeout = operationTimeout
@@ -147,7 +165,7 @@ public actor ReminderService: ReminderServiceProtocol {
     public func validateAllowedLists() async -> AllowedListValidation {
         await withGateOrUnvalidated { service in
             let available = Set(
-                service.eventStore.calendars(for: .reminder).map(\.calendarIdentifier)
+                service.reminderStore.reminderCalendars().map(\.calendarIdentifier)
             )
             return AllowedListValidation(
                 isRestricted: service.listAccess.isRestricted,
@@ -224,7 +242,7 @@ public actor ReminderService: ReminderServiceProtocol {
     }
 
     private func allowedCalendars() -> [EKCalendar] {
-        let all = eventStore.calendars(for: .reminder)
+        let all = reminderStore.reminderCalendars()
         guard listAccess.isRestricted else { return all }
         return all.filter { listAccess.isAllowed($0.calendarIdentifier) }
     }
@@ -332,8 +350,8 @@ public actor ReminderService: ReminderServiceProtocol {
         }
 
         let predicate = includeDone
-            ? eventStore.predicateForReminders(in: calendars)
-            : eventStore.predicateForIncompleteReminders(
+            ? reminderStore.predicateForReminders(in: calendars)
+            : reminderStore.predicateForIncompleteReminders(
                 withDueDateStarting: nil,
                 ending: nil,
                 calendars: calendars
@@ -579,7 +597,7 @@ public actor ReminderService: ReminderServiceProtocol {
                     timeoutTask: nil
                 )
 
-                let request = eventStore.fetchReminders(matching: predicate) { [weak self] reminders in
+                let request = reminderStore.fetchReminders(matching: predicate) { [weak self] reminders in
                     let models = (reminders ?? []).map(Self.mapReminderToModel)
                     guard let service = self else { return }
                     Task { await service.finishReminderFetch(id: id, result: .success(models)) }
@@ -615,7 +633,7 @@ public actor ReminderService: ReminderServiceProtocol {
         pendingReminderFetch = nil
         pending.timeoutTask?.cancel()
         if cancelRequest, let request = pending.request {
-            eventStore.cancelFetchRequest(request)
+            reminderStore.cancelFetchRequest(request)
         }
         pending.continuation.resume(with: result)
     }
