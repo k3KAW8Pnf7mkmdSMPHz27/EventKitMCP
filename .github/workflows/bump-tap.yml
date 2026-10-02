@@ -75,10 +75,12 @@ jobs:
           SHA: ${{ steps.release.outputs.sha }}
         run: |
           set -euo pipefail
-          sed -i -E "s|(tag: \")[^\"]+(\")|\1${TAG}\2|; s|(revision: \")[^\"]+(\")|\1${SHA}\2|" "$FORMULA"
-          grep -qF "tag: \"${TAG}\"" "$FORMULA" \
+          # `brew style` aligns the url hash's values, so allow any run of spaces
+          # between the key and its quoted value.
+          sed -i -E "s|(tag: *\")[^\"]+(\")|\1${TAG}\2|; s|(revision: *\")[^\"]+(\")|\1${SHA}\2|" "$FORMULA"
+          grep -qE "tag: *\"${TAG//./\\.}\"" "$FORMULA" \
             || { echo "::error::tag rewrite did not apply to ${FORMULA}" >&2; exit 1; }
-          grep -qF "revision: \"${SHA}\"" "$FORMULA" \
+          grep -qE "revision: *\"${SHA}\"" "$FORMULA" \
             || { echo "::error::revision rewrite did not apply to ${FORMULA}" >&2; exit 1; }
 
           if git diff --quiet; then
@@ -128,4 +130,12 @@ jobs:
               --body-file "${RUNNER_TEMP}/pr-body.md" \
               --base main \
               --head "$BRANCH"
+          fi
+
+          # The tap's ruleset requires its CI (audit, build from source, test), so
+          # auto-merge lands the pin only once that passes. Idempotent across re-runs.
+          if [ "$(gh pr view "$BRANCH" --json autoMergeRequest --jq '.autoMergeRequest != null')" = "true" ]; then
+            echo "Auto-merge already enabled for ${BRANCH}."
+          else
+            gh pr merge "$BRANCH" --auto --squash
           fi
