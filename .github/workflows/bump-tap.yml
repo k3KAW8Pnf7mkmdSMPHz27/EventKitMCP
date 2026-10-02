@@ -34,8 +34,7 @@ jobs:
             *) echo "::error::Refusing to bump: '$TAG' is not a vX.Y.Z tag" >&2; exit 1 ;;
           esac
 
-          # Prefer the peeled ref: an annotated tag's own refs/tags/<tag> points at
-          # the tag object, not the commit, and Homebrew needs the commit.
+          # Annotated tags: refs/tags/<tag> is the tag object; ^{} is the commit.
           REFS=$(git ls-remote "https://github.com/${SOURCE_REPO}.git" \
                    "refs/tags/${TAG}" "refs/tags/${TAG}^{}")
           SHA=$(printf '%s\n' "$REFS" | awk -v t="refs/tags/${TAG}^{}" '$2==t {print $1}')
@@ -75,8 +74,7 @@ jobs:
           SHA: ${{ steps.release.outputs.sha }}
         run: |
           set -euo pipefail
-          # `brew style` aligns the url hash's values, so allow any run of spaces
-          # between the key and its quoted value.
+          # brew style aligns the url block's keys, hence ' *'.
           sed -i -E "s|(tag: *\")[^\"]+(\")|\1${TAG}\2|; s|(revision: *\")[^\"]+(\")|\1${SHA}\2|" "$FORMULA"
           grep -qE "tag: *\"${TAG//./\\.}\"" "$FORMULA" \
             || { echo "::error::tag rewrite did not apply to ${FORMULA}" >&2; exit 1; }
@@ -132,8 +130,6 @@ jobs:
               --head "$BRANCH"
           fi
 
-          # The tap's ruleset requires its CI (audit, build from source, test), so
-          # auto-merge lands the pin only once that passes. Idempotent across re-runs.
           if [ "$(gh pr view "$BRANCH" --json autoMergeRequest --jq '.autoMergeRequest != null')" = "true" ]; then
             echo "Auto-merge already enabled for ${BRANCH}."
           else
