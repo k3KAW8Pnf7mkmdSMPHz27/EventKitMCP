@@ -71,11 +71,11 @@ struct UpsertReminderItem {
     var id: String?
     /// Title (required for create, optional for update)
     var title: String?
-    /// Notes
+    /// Notes. Set to null to remove existing notes.
     var notes: String?
     /// Mark done (true) or not done (false). Preferred way to handle finished tasks—preserves history unlike delete
     var done: Bool?
-    /// Due date in ISO 8601 format
+    /// Due date in ISO 8601 format. Set to null to remove existing due date.
     var dueDate: String?
     /// IANA time-zone identifier for dueDate; omit for a floating date.
     var dueTimeZone: String?
@@ -89,9 +89,9 @@ struct UpsertReminderItem {
     var listId: String?
     /// Recurrence rule in RRULE format (RFC 5545). Examples: "FREQ=DAILY", "FREQ=WEEKLY;BYDAY=MO,WE,FR", "FREQ=MONTHLY;BYDAY=2TU;COUNT=10". Set to null to remove existing recurrence.
     var recurrence: String?
-    /// Location text
+    /// Location text. Set to null to remove existing location.
     var location: String?
-    /// URL to attach to the reminder
+    /// URL to attach to the reminder. Set to null to remove existing URL.
     var url: String?
     /// Relative, absolute, or location alarms. Relative alarms use the reminder start date. Set to null to remove all alarms.
     var alarms: [ReminderAlarmInput]?
@@ -148,7 +148,7 @@ struct EmptyInput {}
 
 @Schemable
 struct AlarmOutput: Codable {
-    var kind: String
+    var kind: ReminderAlarmKindInput
     var minutesBefore: Int?
     var absoluteDate: String?
     var proximity: String?
@@ -164,7 +164,7 @@ struct ReminderOutput: Codable {
     var title: String
     var notes: String?
     var done: Bool
-    var priority: String
+    var priority: ReminderPriorityInput
     var dueDate: String?
     var dueTimeZone: String?
     var isAllDay: Bool
@@ -182,6 +182,7 @@ struct ReminderOutput: Codable {
 
 @Schemable
 struct FailureOutput: Codable {
+    /// The reminder ID; the title for a failed create; upsert[i] or delete[i] for a malformed item.
     var id: String
     var error: String
 }
@@ -220,7 +221,7 @@ struct GetReminderListsOutput: Codable {
 
 @Schemable
 struct ManageReminderListOutput: Codable {
-    var action: String
+    var action: ReminderListAction
     var id: String
     var list: ReminderListOutput?
 }

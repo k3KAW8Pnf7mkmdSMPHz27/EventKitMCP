@@ -407,7 +407,7 @@ private func handleManageReminderList(
         let list = try await reminderService.createList(request)
         return try .success(
             "Created reminder list:\n\(formatList(list))",
-            structuredContent: ManageReminderListOutput(action: action.rawValue, id: list.id, list: list.output)
+            structuredContent: ManageReminderListOutput(action: action, id: list.id, list: list.output)
         )
 
     case .delete:
@@ -417,7 +417,7 @@ private func handleManageReminderList(
         try await reminderService.deleteList(id: id)
         return try .success(
             "Deleted reminder list: \(id)",
-            structuredContent: ManageReminderListOutput(action: action.rawValue, id: id, list: nil)
+            structuredContent: ManageReminderListOutput(action: action, id: id, list: nil)
         )
     }
 }

@@ -97,6 +97,11 @@
                           ]
                         },
                         "kind" : {
+                          "enum" : [
+                            "relative",
+                            "absolute",
+                            "location"
+                          ],
                           "type" : "string"
                         },
                         "latitude" : {
@@ -197,6 +202,12 @@
                 ]
               },
               "priority" : {
+                "enum" : [
+                  "none",
+                  "low",
+                  "medium",
+                  "high"
+                ],
                 "type" : "string"
               },
               "recurrence" : {
@@ -374,7 +385,7 @@
                     ]
                   },
                   "dueDate" : {
-                    "description" : "Due date in ISO 8601 format",
+                    "description" : "Due date in ISO 8601 format. Set to null to remove existing due date.",
                     "type" : [
                       "string",
                       "null"
@@ -402,14 +413,14 @@
                     ]
                   },
                   "location" : {
-                    "description" : "Location text",
+                    "description" : "Location text. Set to null to remove existing location.",
                     "type" : [
                       "string",
                       "null"
                     ]
                   },
                   "notes" : {
-                    "description" : "Notes",
+                    "description" : "Notes. Set to null to remove existing notes.",
                     "type" : [
                       "string",
                       "null"
@@ -461,7 +472,7 @@
                     ]
                   },
                   "url" : {
-                    "description" : "URL to attach to the reminder",
+                    "description" : "URL to attach to the reminder. Set to null to remove existing URL.",
                     "type" : [
                       "string",
                       "null"
@@ -498,6 +509,11 @@
                           ]
                         },
                         "kind" : {
+                          "enum" : [
+                            "relative",
+                            "absolute",
+                            "location"
+                          ],
                           "type" : "string"
                         },
                         "latitude" : {
@@ -598,6 +614,12 @@
                 ]
               },
               "priority" : {
+                "enum" : [
+                  "none",
+                  "low",
+                  "medium",
+                  "high"
+                ],
                 "type" : "string"
               },
               "recurrence" : {
@@ -657,6 +679,11 @@
                           ]
                         },
                         "kind" : {
+                          "enum" : [
+                            "relative",
+                            "absolute",
+                            "location"
+                          ],
                           "type" : "string"
                         },
                         "latitude" : {
@@ -757,6 +784,12 @@
                 ]
               },
               "priority" : {
+                "enum" : [
+                  "none",
+                  "low",
+                  "medium",
+                  "high"
+                ],
                 "type" : "string"
               },
               "recurrence" : {
@@ -808,6 +841,7 @@
                 "type" : "string"
               },
               "id" : {
+                "description" : "The reminder ID; the title for a failed create; upsert[i] or delete[i] for a malformed item.",
                 "type" : "string"
               }
             },
@@ -834,6 +868,11 @@
                           ]
                         },
                         "kind" : {
+                          "enum" : [
+                            "relative",
+                            "absolute",
+                            "location"
+                          ],
                           "type" : "string"
                         },
                         "latitude" : {
@@ -934,6 +973,12 @@
                 ]
               },
               "priority" : {
+                "enum" : [
+                  "none",
+                  "low",
+                  "medium",
+                  "high"
+                ],
                 "type" : "string"
               },
               "recurrence" : {
@@ -1096,6 +1141,10 @@
     "outputSchema" : {
       "properties" : {
         "action" : {
+          "enum" : [
+            "create",
+            "delete"
+          ],
           "type" : "string"
         },
         "id" : {

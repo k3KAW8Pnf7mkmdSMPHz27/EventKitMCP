@@ -201,6 +201,17 @@ struct ToolSchemaContractTests {
                         ])
                     ])
                 ]), against: write.inputSchema))
+        let cleared = ["notes", "dueDate", "startDate", "recurrence", "location", "url", "alarms"]
+        #expect(
+            try validates(
+                .object([
+                    "upsert": .array([
+                        .object(
+                            Dictionary(uniqueKeysWithValues: cleared.map { ($0, Value.null) })
+                                .merging(["id": .string("rem-1")]) { $1 })
+                    ])
+                ]), against: write.inputSchema),
+            "Every clearable field must advertise null")
         #expect(
             try validates(
                 .object([

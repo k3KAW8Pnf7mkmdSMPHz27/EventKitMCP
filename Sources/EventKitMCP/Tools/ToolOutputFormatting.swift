@@ -14,7 +14,7 @@ extension ReminderModel {
             title: title,
             notes: notes,
             done: done,
-            priority: priority.displayName.lowercased(),
+            priority: ReminderPriorityInput(priority),
             dueDate: dueDate.map(formatISO8601),
             dueTimeZone: dueTimeZone,
             isAllDay: isAllDay,
@@ -36,18 +36,29 @@ private extension ReminderAlarmModel {
     var output: AlarmOutput {
         switch self {
         case .relative(let minutesBefore):
-            AlarmOutput(kind: kind.rawValue, minutesBefore: minutesBefore)
+            AlarmOutput(kind: .relative, minutesBefore: minutesBefore)
         case .absolute(let date):
-            AlarmOutput(kind: kind.rawValue, absoluteDate: formatISO8601(date))
+            AlarmOutput(kind: .absolute, absoluteDate: formatISO8601(date))
         case .location(let location, let proximity):
             AlarmOutput(
-                kind: kind.rawValue,
+                kind: .location,
                 proximity: proximity.rawValue,
                 title: location.title,
                 latitude: location.latitude,
                 longitude: location.longitude,
                 radius: location.radius
             )
+        }
+    }
+}
+
+extension ReminderPriorityInput {
+    init(_ priority: ReminderPriority) {
+        switch priority {
+        case .none: self = .none
+        case .low: self = .low
+        case .medium: self = .medium
+        case .high: self = .high
         }
     }
 }

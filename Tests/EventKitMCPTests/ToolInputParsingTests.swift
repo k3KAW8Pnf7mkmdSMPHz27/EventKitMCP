@@ -263,6 +263,7 @@ struct ToolInputParsingTests {
         ]
         for (input, priority) in priorities {
             #expect(try requirePriority(input) == priority, "\(input)")
+            #expect(ReminderPriorityInput(priority).rawValue == input, "\(input)")
         }
         #expect(try requirePriority(nil) == nil)
         for bad in ["urgent", "High", ""] {
