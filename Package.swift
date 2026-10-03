@@ -3,6 +3,9 @@
 
 import PackageDescription
 
+// Debug only, so a new toolchain warning never breaks a from-source release build (Homebrew).
+let warningsAsErrors: [SwiftSetting] = [.treatAllWarnings(as: .error, .when(configuration: .debug))]
+
 let package = Package(
     name: "EventKitMCP",
     platforms: [
@@ -46,7 +49,8 @@ let package = Package(
                 .product(name: "JSONSchema", package: "swift-json-schema"),
                 .product(name: "JSONSchemaBuilder", package: "swift-json-schema")
             ],
-            path: "Sources/EventKitMCP"
+            path: "Sources/EventKitMCP",
+            swiftSettings: warningsAsErrors
         ),
 
         // MARK: - EventKit Service Layer
@@ -55,14 +59,16 @@ let package = Package(
             dependencies: [
                 .product(name: "Logging", package: "swift-log")
             ],
-            path: "Sources/EventKitService"
+            path: "Sources/EventKitService",
+            swiftSettings: warningsAsErrors
         ),
 
         // MARK: - Tests
         .testTarget(
             name: "EventKitServiceTests",
             dependencies: ["EventKitService"],
-            path: "Tests/EventKitServiceTests"
+            path: "Tests/EventKitServiceTests",
+            swiftSettings: warningsAsErrors
         ),
         .testTarget(
             name: "EventKitMCPTests",
@@ -73,7 +79,8 @@ let package = Package(
                 .product(name: "JSONSchema", package: "swift-json-schema")
             ],
             path: "Tests/EventKitMCPTests",
-            exclude: ["Contract"]
+            exclude: ["Contract"],
+            swiftSettings: warningsAsErrors
         )
     ],
     swiftLanguageModes: [.v6]

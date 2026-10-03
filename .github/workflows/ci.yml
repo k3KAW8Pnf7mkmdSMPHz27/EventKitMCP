@@ -15,12 +15,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - name: Select Xcode 26 / Swift 6.2+
         run: sudo xcode-select -s /Applications/Xcode_26.0.app/Contents/Developer
-      - name: Build with complete concurrency checking
-        run: swift build -c release -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+      - name: Build (release)
+        run: swift build -c release
+      # Debug builds treat warnings as errors (Package.swift), so this is the warnings gate.
       - name: Test
-        run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-      - name: Schema contract tests
-        run: swift test --filter ToolSchemaContractTests
+        run: swift test
 
   # Tags and publishes a GitHub Release once build-and-test has passed on this
   # exact commit. The version comes from the conventional commit subjects since
