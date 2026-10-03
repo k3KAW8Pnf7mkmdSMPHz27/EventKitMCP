@@ -13,6 +13,7 @@ extension ReminderService {
         guard isListAllowed(id: id) else {
             throw ReminderServiceError.listAccessDenied(id)
         }
+        // A lookup, so a missing list is nil; deleting one is an error.
         guard let calendar = reminderStore.calendar(withIdentifier: id) else {
             return nil
         }
@@ -45,13 +46,7 @@ extension ReminderService {
     }
 
     func deleteListImpl(id: String) async throws {
-        guard isListAllowed(id: id) else {
-            throw ReminderServiceError.listAccessDenied(id)
-        }
-        guard let calendar = reminderStore.calendar(withIdentifier: id) else {
-            throw ReminderServiceError.listNotFound(id)
-        }
-
+        let calendar = try calendarInAllowlist(id: id)
         try reminderStore.removeCalendar(calendar, commit: true)
         logger.info("Deleted reminder list", metadata: ["id": "\(id)"])
     }

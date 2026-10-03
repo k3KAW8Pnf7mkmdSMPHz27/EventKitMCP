@@ -5,7 +5,6 @@
   "maximumBlankLines": 1,
   "multiElementCollectionTrailingCommas": false,
   "rules": {
-    "NoAccessLevelOnExtensionDeclaration": false,
-    "ReplaceForEachWithForLoop": false
+    "NoAccessLevelOnExtensionDeclaration": false
   }
 }

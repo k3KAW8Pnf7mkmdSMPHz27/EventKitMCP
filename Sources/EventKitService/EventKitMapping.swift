@@ -80,19 +80,19 @@ enum EventKitMapping {
         return calendar
     }
 
-    static func dateComponents(from date: Date, allDay: Bool, timeZoneIdentifier: String?) throws -> DateComponents {
+    static func dateComponents(from value: ReminderDateValue) throws -> DateComponents {
         var calendar = Calendar(identifier: .gregorian)
-        if let identifier = timeZoneIdentifier {
+        if let identifier = value.timeZoneIdentifier {
             guard let timeZone = TimeZone(identifier: identifier) else {
                 throw ReminderServiceError.invalidTimeZone(identifier)
             }
             calendar.timeZone = timeZone
         }
         var components = calendar.dateComponents(
-            allDay ? [.year, .month, .day] : [.year, .month, .day, .hour, .minute],
-            from: date
+            value.isAllDay ? [.year, .month, .day] : [.year, .month, .day, .hour, .minute],
+            from: value.date
         )
-        components.timeZone = timeZoneIdentifier == nil ? nil : calendar.timeZone
+        components.timeZone = value.timeZoneIdentifier == nil ? nil : calendar.timeZone
         return components
     }
 
@@ -103,17 +103,20 @@ enum EventKitMapping {
         return url
     }
 
-    static func validateAlarmReferences(_ alarms: [ReminderAlarmModel], hasStartDate: Bool) throws {
-        for case .relative(let minutes) in alarms {
-            guard hasStartDate else { throw ReminderServiceError.relativeAlarmRequiresStartDate }
-            guard minutes >= 0 else { throw ReminderServiceError.invalidAlarm }
+    /// EventKit alarms for these models; relative ones need a start date and a non-negative offset.
+    static func makeAlarms(_ models: [ReminderAlarmModel], hasStartDate: Bool) throws -> [EKAlarm] {
+        try models.map { model in
+            if case .relative(let minutes) = model {
+                guard hasStartDate else { throw ReminderServiceError.relativeAlarmRequiresStartDate }
+                guard minutes >= 0 else { throw ReminderServiceError.invalidAlarm }
+            }
+            return makeAlarm(model)
         }
     }
 
-    static func makeAlarm(_ model: ReminderAlarmModel) throws -> EKAlarm {
+    private static func makeAlarm(_ model: ReminderAlarmModel) -> EKAlarm {
         switch model {
         case .relative(let minutes):
-            guard minutes >= 0 else { throw ReminderServiceError.invalidAlarm }
             return EKAlarm(relativeOffset: TimeInterval(-minutes * 60))
         case .absolute(let date):
             return EKAlarm(absoluteDate: date)
