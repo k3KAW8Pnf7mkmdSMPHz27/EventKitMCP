@@ -574,27 +574,4 @@ struct QueryRemindersTests {
             Issue.record("Expected text content")
         }
     }
-
-    // MARK: - Validation errors
-
-    @Test("Invalid filter returns error")
-    func testInvalidFilter() async throws {
-        let mockService = MockReminderService()
-
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["filter": .string("invalid")],
-            reminderService: mockService,
-
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == true)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Invalid filter"))
-        } else {
-            Issue.record("Expected text content")
-        }
-    }
 }

@@ -74,8 +74,16 @@ struct ListAccessPolicyTests {
     }
 }
 
-@Suite("Access denied error surface tests")
-struct AccessDeniedErrorTests {
+@Suite("Error surface tests")
+struct ErrorSurfaceTests {
+    @Test("Reminder service error descriptions")
+    func testReminderServiceErrorDescriptions() {
+        #expect(ReminderServiceError.accessDenied.errorDescription == "Access to reminders was denied")
+        #expect(ReminderServiceError.listNotFound("list-123").errorDescription == "Reminder list not found: list-123")
+        #expect(ReminderServiceError.reminderNotFound("rem-456").errorDescription == "Reminder not found: rem-456")
+        #expect(ReminderServiceError.noValidSource.errorDescription == "No valid source found for creating reminder lists")
+    }
+
     @Test("A denied reminder is indistinguishable from a missing one")
     func deniedReminderLooksMissing() {
         // The oracle this closes: a caller that could tell "denied" from "not found"

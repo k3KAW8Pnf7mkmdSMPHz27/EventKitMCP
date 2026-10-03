@@ -138,12 +138,6 @@ struct ManageReminderListInput {
     var id: String?
 }
 
-// MARK: - Overview
-
-/// Input schema for overview tool (no parameters needed)
-@Schemable
-struct OverviewInput {}
-
 // MARK: - Empty Input (for tools with no parameters)
 
 /// Input schema for tools with no parameters
