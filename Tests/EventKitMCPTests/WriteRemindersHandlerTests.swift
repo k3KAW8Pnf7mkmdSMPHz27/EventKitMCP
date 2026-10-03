@@ -267,6 +267,20 @@ struct WriteRemindersHandlerTests {
         )
     }
 
+    @Test("A non-string delete element fails that item and the rest still run")
+    func nonStringDeleteElement() async {
+        let service = MockReminderService()
+        service.mockReminders = [TestFixtures.reminder(id: "r1", title: "Gone")]
+        let result = await callTool(
+            "write_reminders",
+            arguments: ["delete": .array([.string("r1"), .int(5)])],
+            reminderService: service
+        )
+        result.expectText(
+            containing: "Deleted 1 of 2", "delete[1]", "Invalid item format: expected a reminder ID string")
+        #expect(service.mockReminders.isEmpty)
+    }
+
     @Test("Delete multiple reminders returns full details")
     func testDeleteMultipleReminders() async throws {
         let service = MockReminderService()

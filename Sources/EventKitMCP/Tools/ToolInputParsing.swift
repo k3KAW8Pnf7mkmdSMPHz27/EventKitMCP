@@ -15,6 +15,8 @@ enum ParseError: Error, LocalizedError {
     case invalidAlarms(String)
     case invalidStringValue(String)
     case invalidPagination(String)
+    case missingParameter(String, action: String?)
+    case invalidParameter(String, value: String, expected: String)
 
     var errorDescription: String? {
         switch self {
@@ -43,6 +45,10 @@ enum ParseError: Error, LocalizedError {
             return "Invalid \(field): expected a string or null"
         case .invalidPagination(let reason):
             return "Invalid pagination: \(reason)"
+        case .missingParameter(let name, let action):
+            return "Missing required parameter: \(name)" + (action.map { " (required for \($0) action)" } ?? "")
+        case .invalidParameter(let name, let value, let expected):
+            return "Invalid \(name): '\(value)'. \(expected)"
         }
     }
 }
