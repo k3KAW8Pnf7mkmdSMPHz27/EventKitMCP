@@ -46,7 +46,8 @@ struct EventKitMCPServer: AsyncParsableCommand {
 
         var logger = Logger(label: "eventkit-mcp")
         logger.logLevel = logLevel
-        logger.info("Starting EventKit MCP Server")
+        // Touching the catalogue builds every schema now, so a bad one stops the launch.
+        logger.info("Starting EventKit MCP Server", metadata: ["tools": "\(ToolRegistry.catalogue.count)"])
 
         // Parse allowed lists
         let allowedListIds: Set<String>? = allowedLists.map { listString in
@@ -149,85 +150,63 @@ enum ToolRegistry {
     /// name list could drift from the dispatch switch in ToolHandlers, silently leaving
     /// a newly added mutating tool allowed.
     static let mutatingTools: Set<String> = Set(
-        allTools()
+        catalogue
             .filter { $0.annotations.readOnlyHint != true }
             .map(\.name)
     )
 
-    /// Creates all tool definitions using @Schemable-generated schemas
     static func allTools(readOnly: Bool = false) -> [Tool] {
-        let tools: [Tool] = [
-            // Unified query tool
-            Tool(
-                name: "query_reminders",
-                title: "Query Reminders",
-                description: "Query reminders by list, time filter, and regex search. Supplied constraints are combined. Results are paginated: limit defaults to 25 (maximum 100), and offset selects the next page. Use regex alternation (id1|id2|id3) to match multiple IDs in one call.",
-                inputSchema: SchemaHelpers.schemaToValue(QueryRemindersInput.self),
-                annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false),
-                outputSchema: SchemaHelpers.schemaToValue(QueryRemindersOutput.self)
-            ),
-
-            // Write reminders (unified create/update/delete)
-            Tool(
-                name: "write_reminders",
-                title: "Write Reminders",
-                description: "Create, update, or delete reminders. BATCH MULTIPLE OPERATIONS in one call for efficiency. Use 'upsert' array: items without 'id' create new reminders, items with 'id' update existing. Use 'delete' array for IDs to permanently remove. PREFER marking reminders done (done: true) over deleting—done reminders preserve history and can be reviewed later. Only delete for duplicates, mistakes, or when explicitly requested.",
-                inputSchema: SchemaHelpers.schemaToValue(WriteRemindersInput.self),
-                annotations: .init(destructiveHint: true, idempotentHint: false, openWorldHint: false),
-                outputSchema: SchemaHelpers.schemaToValue(WriteRemindersOutput.self)
-            ),
-
-            // List operations
-            Tool(
-                name: "get_reminder_lists",
-                title: "Get Reminder Lists",
-                description: "Get all reminder lists",
-                inputSchema: SchemaHelpers.schemaToValue(EmptyInput.self),
-                annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false),
-                outputSchema: SchemaHelpers.schemaToValue(GetReminderListsOutput.self)
-            ),
-            Tool(
-                name: "manage_reminder_list",
-                title: "Manage Reminder List",
-                description: "Create or delete reminder lists. Use action='create' with title (and optional color), or action='delete' with id.",
-                inputSchema: SchemaHelpers.schemaToValue(ManageReminderListInput.self),
-                annotations: .init(destructiveHint: true, idempotentHint: false, openWorldHint: false),
-                outputSchema: SchemaHelpers.schemaToValue(ManageReminderListOutput.self)
-            ),
-
-            // Dashboard
-            Tool(
-                name: "overview",
-                title: "Overview",
-                description: "Get a concise overview: current date/time with timezone, scheduled vs unscheduled breakdown (with overdue/today/upcoming counts), all lists with counts, high-priority unscheduled items needing attention, overdue and today's reminders with details, and upcoming week summary",
-                inputSchema: SchemaHelpers.schemaToValue(OverviewInput.self),
-                annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false),
-                outputSchema: SchemaHelpers.schemaToValue(OverviewOutput.self)
-            )
-        ]
-
-        if readOnly {
-            // Filter on the annotation directly rather than via `mutatingTools`, which is
-            // itself derived from this function.
-            return tools.filter { $0.annotations.readOnlyHint == true }
-        }
-        return tools
-    }
-}
-
-// MARK: - No-Op Log Handler
-
-/// A log handler that discards all log messages
-struct SwiftLogNoOpLogHandler: LogHandler {
-    var metadata: Logger.Metadata = [:]
-    var logLevel: Logger.Level = .critical
-
-    subscript(metadataKey key: String) -> Logger.Metadata.Value? {
-        get { nil }
-        set { }
+        readOnly ? catalogue.filter { $0.annotations.readOnlyHint == true } : catalogue
     }
 
-    func log(event: LogEvent) {
-        // Discard all logs
-    }
+    /// Every tool definition, with schemas generated by @Schemable.
+    static let catalogue: [Tool] = [
+        // Unified query tool
+        Tool(
+            name: "query_reminders",
+            title: "Query Reminders",
+            description: "Query reminders by list, time filter, and regex search. Supplied constraints are combined. Results are paginated: limit defaults to 25 (maximum 100), and offset selects the next page. Use regex alternation (id1|id2|id3) to match multiple IDs in one call.",
+            inputSchema: SchemaHelpers.schemaToValue(QueryRemindersInput.self),
+            annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false),
+            outputSchema: SchemaHelpers.schemaToValue(QueryRemindersOutput.self)
+        ),
+
+        // Write reminders (unified create/update/delete)
+        Tool(
+            name: "write_reminders",
+            title: "Write Reminders",
+            description: "Create, update, or delete reminders. BATCH MULTIPLE OPERATIONS in one call for efficiency. Use 'upsert' array: items without 'id' create new reminders, items with 'id' update existing. Use 'delete' array for IDs to permanently remove. PREFER marking reminders done (done: true) over deleting—done reminders preserve history and can be reviewed later. Only delete for duplicates, mistakes, or when explicitly requested.",
+            inputSchema: SchemaHelpers.schemaToValue(WriteRemindersInput.self),
+            annotations: .init(destructiveHint: true, idempotentHint: false, openWorldHint: false),
+            outputSchema: SchemaHelpers.schemaToValue(WriteRemindersOutput.self)
+        ),
+
+        // List operations
+        Tool(
+            name: "get_reminder_lists",
+            title: "Get Reminder Lists",
+            description: "Get all reminder lists",
+            inputSchema: SchemaHelpers.schemaToValue(EmptyInput.self),
+            annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false),
+            outputSchema: SchemaHelpers.schemaToValue(GetReminderListsOutput.self)
+        ),
+        Tool(
+            name: "manage_reminder_list",
+            title: "Manage Reminder List",
+            description: "Create or delete reminder lists. Use action='create' with title (and optional color), or action='delete' with id.",
+            inputSchema: SchemaHelpers.schemaToValue(ManageReminderListInput.self),
+            annotations: .init(destructiveHint: true, idempotentHint: false, openWorldHint: false),
+            outputSchema: SchemaHelpers.schemaToValue(ManageReminderListOutput.self)
+        ),
+
+        // Dashboard
+        Tool(
+            name: "overview",
+            title: "Overview",
+            description: "Get a concise overview: current date/time with timezone, scheduled vs unscheduled breakdown (with overdue/today/upcoming counts), all lists with counts, high-priority unscheduled items needing attention, overdue and today's reminders with details, and upcoming week summary",
+            inputSchema: SchemaHelpers.schemaToValue(EmptyInput.self),
+            annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false),
+            outputSchema: SchemaHelpers.schemaToValue(OverviewOutput.self)
+        )
+    ]
 }

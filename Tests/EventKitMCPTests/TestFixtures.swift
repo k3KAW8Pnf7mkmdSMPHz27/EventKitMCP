@@ -41,24 +41,6 @@ enum TestFixtures {
         sourceTitle: nil
     )
 
-    static let personalList = ReminderListModel(
-        id: "list-2",
-        title: "Personal",
-        color: "#FF5733",
-        isSubscribed: false,
-        isImmutable: false,
-        sourceTitle: nil
-    )
-
-    static let shoppingList = ReminderListModel(
-        id: "list-3",
-        title: "Shopping",
-        color: "#33FF57",
-        isSubscribed: false,
-        isImmutable: false,
-        sourceTitle: "iCloud"
-    )
-
     // MARK: - Reminder Factory
 
     /// Create a reminder with customizable fields
@@ -95,77 +77,4 @@ enum TestFixtures {
             alarms: alarms?.map(ReminderAlarmModel.relative(minutesBefore:))
         )
     }
-
-    // MARK: - Preset Reminders
-
-    /// A basic task with no due date
-    static let basicTask = reminder(id: "r1", title: "Basic Task")
-
-    /// An overdue task (due yesterday)
-    static var overdueTask: ReminderModel {
-        reminder(id: "r2", title: "Overdue Task", dueDate: yesterday)
-    }
-
-    /// A task due today
-    static var todayTask: ReminderModel {
-        reminder(id: "r3", title: "Today Task", dueDate: todayNoon)
-    }
-
-    /// A high priority task
-    static let highPriorityTask = reminder(
-        id: "r4",
-        title: "High Priority Task",
-        priority: .high
-    )
-
-    /// A done task
-    static let doneTask = reminder(
-        id: "r5",
-        title: "Done Task",
-        done: true
-    )
-
-    /// An upcoming task (due in 3 days)
-    static var upcomingTask: ReminderModel {
-        reminder(id: "r6", title: "Upcoming Task", dueDate: in3Days)
-    }
-
-    /// A task far in the future (due in 10 days)
-    static var futureTask: ReminderModel {
-        reminder(id: "r7", title: "Future Task", dueDate: in10Days)
-    }
-
-    /// A personal task in the personal list
-    static let personalTask = reminder(
-        id: "r8",
-        title: "Personal Task",
-        listId: "list-2",
-        listName: "Personal"
-    )
-
-    // MARK: - Common Test Scenarios
-
-    /// A set of reminders for testing filtering
-    static var filterTestReminders: [ReminderModel] {
-        [
-            overdueTask,
-            todayTask,
-            upcomingTask,
-            futureTask,
-            basicTask
-        ]
-    }
-
-    /// A set of reminders for testing priority filtering
-    static var priorityTestReminders: [ReminderModel] {
-        [
-            reminder(id: "p1", title: "High Priority", priority: .high),
-            reminder(id: "p2", title: "Medium Priority", priority: .medium),
-            reminder(id: "p3", title: "Low Priority", priority: .low),
-            reminder(id: "p4", title: "No Priority", priority: .none)
-        ]
-    }
-
-    /// Standard list setup for tests
-    static let standardLists = [workList, personalList]
 }

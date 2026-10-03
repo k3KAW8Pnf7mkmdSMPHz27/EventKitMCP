@@ -42,11 +42,6 @@ extension CallTool.Result {
     static func notAllowed(_ reason: String) -> Self {
         .failure(reason)
     }
-
-    /// Create error response for not found
-    static func notFound(_ type: String, id: String) -> Self {
-        .failure("\(type) not found: \(id)")
-    }
 }
 
 // MARK: - Reminder Filters
@@ -873,15 +868,6 @@ private func requireDateWithTimeInfo(
         throw ParseError.invalidDateFormat(string)
     }
     return (parsed.date, !parsed.hasTime)
-}
-
-/// Parse date with explicit error when format is invalid
-private func requireDate(_ string: String?) throws -> Date? {
-    guard let string = string else { return nil }
-    guard let date = parseDate(string) else {
-        throw ParseError.invalidDateFormat(string)
-    }
-    return date
 }
 
 private func parsePriority(_ string: String?) -> ReminderPriority? {

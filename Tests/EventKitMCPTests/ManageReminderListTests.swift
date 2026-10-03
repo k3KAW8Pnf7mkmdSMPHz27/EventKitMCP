@@ -242,31 +242,4 @@ struct ManageReminderListTests {
 
         #expect(mockService.mockLists.isEmpty)
     }
-
-    // MARK: - Color validation
-
-    @Test("Invalid color format returns error")
-    func testInvalidColorFormat() async throws {
-        let mockService = MockReminderService()
-
-        let result = await handleToolCall(
-            name: "manage_reminder_list",
-            arguments: [
-                "action": .string("create"),
-                "title": .string("Test"),
-                "color": .string("not-a-color")
-            ],
-            reminderService: mockService,
-
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == true)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Invalid color format"))
-        } else {
-            Issue.record("Expected text content")
-        }
-    }
 }

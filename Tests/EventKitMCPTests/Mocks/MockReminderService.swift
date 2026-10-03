@@ -8,9 +8,7 @@ final class MockReminderService: ReminderServiceProtocol {
     var mockReminders: [ReminderModel] = []
 
     // Track method calls for verification
-    var getListsCalled = false
     var getRemindersCalled = false
-    var lastGetRemindersListId: String?
     var lastGetRemindersIncludeDone: Bool?
     var lastUpdateRequest: UpdateReminderRequest?
 
@@ -19,7 +17,6 @@ final class MockReminderService: ReminderServiceProtocol {
     }
 
     func getLists() async throws -> [ReminderListModel] {
-        getListsCalled = true
         return mockLists
     }
 
@@ -46,7 +43,6 @@ final class MockReminderService: ReminderServiceProtocol {
 
     func getReminders(listId: String?, includeDone: Bool) async throws -> [ReminderModel] {
         getRemindersCalled = true
-        lastGetRemindersListId = listId
         lastGetRemindersIncludeDone = includeDone
 
         var result = mockReminders

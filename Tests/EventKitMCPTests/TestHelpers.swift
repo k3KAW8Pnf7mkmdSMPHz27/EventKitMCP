@@ -72,34 +72,6 @@ extension CallTool.Result {
     }
 }
 
-// MARK: - MockReminderService Extensions
-
-extension MockReminderService {
-    /// Configure the mock with standard lists
-    func withStandardLists() -> Self {
-        self.mockLists = TestFixtures.standardLists
-        return self
-    }
-
-    /// Configure the mock with a custom set of reminders
-    func with(reminders: [ReminderModel]) -> Self {
-        self.mockReminders = reminders
-        return self
-    }
-
-    /// Configure the mock with a custom set of lists
-    func with(lists: [ReminderListModel]) -> Self {
-        self.mockLists = lists
-        return self
-    }
-
-    /// Configure with filter test reminders (overdue, today, upcoming, future, basic)
-    func withFilterTestReminders() -> Self {
-        self.mockReminders = TestFixtures.filterTestReminders
-        return self
-    }
-}
-
 // MARK: - Tool Call Helpers
 
 /// Execute a tool call with minimal boilerplate
