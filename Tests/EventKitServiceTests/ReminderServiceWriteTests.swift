@@ -225,20 +225,20 @@ struct ReminderServiceWriteTests {
         #expect(f.store.saved.count == 4)
     }
 
-    @Test("Completing keeps the first completion date")
-    func completionDateIsSetOnce() async throws {
+    // EventKit stamps the completion date, in whole seconds, every time the flag is set,
+    // even on a reminder already done. So a second `done: true` moves it.
+    @Test("Completing stamps a completion date and reopening clears it")
+    func completionDate() async throws {
         let f = Self.fixture()
         let reminder = try f.reminder(f.existingId)
 
         _ = try await f.service.updateReminder(UpdateReminderRequest(id: f.existingId, done: true))
-        let completed = try #require(reminder.completionDate)
         #expect(reminder.isCompleted)
-
-        _ = try await f.service.updateReminder(UpdateReminderRequest(id: f.existingId, done: true))
-        #expect(reminder.completionDate == completed)
+        #expect(reminder.completionDate != nil)
 
         _ = try await f.service.updateReminder(UpdateReminderRequest(id: f.existingId, done: false))
         #expect(!reminder.isCompleted)
+        #expect(reminder.completionDate == nil)
     }
 
     @Test("Update applies the start date before validating relative alarms")
