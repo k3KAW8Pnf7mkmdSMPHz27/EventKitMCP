@@ -31,19 +31,4 @@ struct ReminderPriorityTests {
         #expect(ReminderPriority.medium.rawValue == 5)
         #expect(ReminderPriority.low.rawValue == 9)
     }
-
-    @Test("Update reminder request partial")
-    func testUpdateReminderRequestPartial() {
-        let request = UpdateReminderRequest(
-            id: "reminder-id",
-            done: true
-        )
-
-        #expect(request.id == "reminder-id")
-        #expect(request.title == nil)
-        #expect(request.notes == .unchanged)
-        #expect(request.done == true)
-        #expect(request.dueDate == .unchanged)
-        #expect(request.priority == nil)
-    }
 }

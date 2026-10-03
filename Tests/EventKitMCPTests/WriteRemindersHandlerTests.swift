@@ -9,27 +9,10 @@ import MCP
 @Suite("Write Reminders Handler Tests")
 struct WriteRemindersHandlerTests {
 
-    @Test("Updating an unrelated field preserves alarms and time zones")
-    func unrelatedUpdatePreservesExpandedFields() async {
+    @Test("Omitted fields are sent as unchanged")
+    func omittedFieldsAreSentAsUnchanged() async throws {
         let service = MockReminderService()
-        let alarms: [ReminderAlarmModel] = [
-            .absolute(TestFixtures.todayNoon),
-            .location(
-                .init(title: "Office", latitude: 41.8781, longitude: -87.6298, radius: 100),
-                proximity: .leave
-            )
-        ]
-        service.mockReminders = [ReminderModel(
-            id: "preserve",
-            title: "Original",
-            dueDate: TestFixtures.todayNoon,
-            dueTimeZone: "America/Chicago",
-            listId: "default",
-            listName: "Default",
-            startDate: TestFixtures.todayNoon,
-            startTimeZone: "Europe/Paris",
-            alarms: alarms
-        )]
+        service.mockReminders = [TestFixtures.reminder(id: "preserve", title: "Original")]
 
         let result = await writeReminders(upsert: [[
             "id": .string("preserve"),
@@ -37,9 +20,16 @@ struct WriteRemindersHandlerTests {
         ]], service: service)
 
         result.expectSuccess()
-        #expect(service.mockReminders[0].alarms == alarms)
-        #expect(service.mockReminders[0].dueTimeZone == "America/Chicago")
-        #expect(service.mockReminders[0].startTimeZone == "Europe/Paris")
+        let request = try #require(service.updateRequests.last)
+        #expect(request.title == "Updated")
+        #expect(request.done == nil && request.priority == nil && request.listId == nil)
+        #expect(request.notes == .unchanged)
+        #expect(request.dueDate == .unchanged)
+        #expect(request.recurrenceRule == .unchanged)
+        #expect(request.location == .unchanged)
+        #expect(request.url == .unchanged)
+        #expect(request.startDate == .unchanged)
+        #expect(request.alarms == .unchanged)
     }
 
     @Test("Oversized batches are rejected before any EventKit work")
@@ -127,23 +117,9 @@ struct WriteRemindersHandlerTests {
     }
 
     @Test("Explicit null clears every nullable reminder field")
-    func explicitNullClearsFields() async {
+    func explicitNullClearsFields() async throws {
         let service = MockReminderService()
-        service.mockReminders = [ReminderModel(
-            id: "clear-me",
-            title: "Clear fields",
-            notes: "notes",
-            dueDate: TestFixtures.todayNoon,
-            dueTimeZone: "America/Chicago",
-            listId: "default",
-            listName: "Default",
-            recurrenceRule: "FREQ=DAILY",
-            url: "https://example.com",
-            location: "Office",
-            startDate: TestFixtures.todayNoon,
-            startTimeZone: "America/Chicago",
-            alarms: [.relative(minutesBefore: 15)]
-        )]
+        service.mockReminders = [TestFixtures.reminder(id: "clear-me", title: "Clear fields")]
 
         let result = await writeReminders(upsert: [[
             "id": .string("clear-me"),
@@ -157,16 +133,14 @@ struct WriteRemindersHandlerTests {
         ]], service: service)
 
         result.expectSuccess()
-        let reminder = service.mockReminders[0]
-        #expect(reminder.notes == nil)
-        #expect(reminder.dueDate == nil)
-        #expect(reminder.dueTimeZone == nil)
-        #expect(reminder.location == nil)
-        #expect(reminder.url == nil)
-        #expect(reminder.startDate == nil)
-        #expect(reminder.startTimeZone == nil)
-        #expect(reminder.recurrenceRule == nil)
-        #expect(reminder.alarms == nil)
+        let request = try #require(service.updateRequests.last)
+        #expect(request.notes == .clear)
+        #expect(request.dueDate == .clear)
+        #expect(request.location == .clear)
+        #expect(request.url == .clear)
+        #expect(request.startDate == .clear)
+        #expect(request.recurrenceRule == .clear)
+        #expect(request.alarms == .clear)
     }
 
     // MARK: - Create Tests (upsert without id)
@@ -222,7 +196,8 @@ struct WriteRemindersHandlerTests {
             "url": .string("https://example.com/updated")
         ]], service: service)
 
-        result.expectText(containing: "Updated 1", "URL: https://example.com/updated")
+        result.expectText(containing: "Updated 1")
+        #expect(service.updateRequests.last?.url == .set("https://example.com/updated"))
     }
 
     @Test("Create reminder with location")
@@ -247,7 +222,8 @@ struct WriteRemindersHandlerTests {
             "location": .string("Room 42")
         ]], service: service)
 
-        result.expectText(containing: "Updated 1", "Location: Room 42")
+        result.expectText(containing: "Updated 1")
+        #expect(service.updateRequests.last?.location == .set("Room 42"))
     }
 
     @Test("Create reminder with alarms")
@@ -289,7 +265,8 @@ struct WriteRemindersHandlerTests {
             ])])
         ]], service: service)
 
-        result.expectText(containing: "Updated 1", "30 min before")
+        result.expectText(containing: "Updated 1")
+        #expect(service.updateRequests.last?.alarms == .set([.relative(minutesBefore: 30)]))
     }
 
     @Test("Remove alarms with null")
@@ -305,7 +282,7 @@ struct WriteRemindersHandlerTests {
         ]], service: service)
 
         result.expectText(containing: "Updated 1")
-        result.expectTextNot(containing: "Alarms:")
+        #expect(service.updateRequests.last?.alarms == .clear)
     }
 
     @Test("Create reminder with start date")
@@ -342,7 +319,7 @@ struct WriteRemindersHandlerTests {
         ]], service: service)
 
         result.expectText(containing: "Updated 1")
-        result.expectTextNot(containing: "Start:")
+        #expect(service.updateRequests.last?.startDate == .clear)
     }
 
     // MARK: - Update Tests (upsert with id)
@@ -360,7 +337,10 @@ struct WriteRemindersHandlerTests {
             "done": .bool(true)
         ]], service: service)
 
-        result.expectText(containing: "Updated 1", "Updated title")
+        result.expectText(containing: "Updated 1")
+        let request = try #require(service.updateRequests.last)
+        #expect(request.title == "Updated title")
+        #expect(request.done == true)
     }
 
     @Test("Update multiple reminders via upsert")
@@ -377,6 +357,9 @@ struct WriteRemindersHandlerTests {
         ], service: service)
 
         result.expectText(containing: "Updated 2")
+        #expect(service.updateRequests.map(\.id) == ["rem-1", "rem-2"])
+        #expect(service.updateRequests.first?.done == true)
+        #expect(service.updateRequests.last?.priority == .high)
     }
 
     // MARK: - Delete Tests
