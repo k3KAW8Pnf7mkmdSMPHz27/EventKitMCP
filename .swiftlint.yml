@@ -6,8 +6,8 @@ only_rules:
   - function_body_length
   - cyclomatic_complexity
 file_length:
-  warning: 1323
-  error: 1323
+  warning: 884
+  error: 884
 type_body_length:
   warning: 588
   error: 588
