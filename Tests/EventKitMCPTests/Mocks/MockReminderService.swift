@@ -10,7 +10,7 @@ final class MockReminderService: ReminderServiceProtocol {
     // Track method calls for verification
     var getRemindersCalled = false
     var lastGetRemindersIncludeDone: Bool?
-    var lastUpdateRequest: UpdateReminderRequest?
+    var updateRequests: [UpdateReminderRequest] = []
 
     func requestAccess() async throws -> Bool {
         return true
@@ -83,52 +83,13 @@ final class MockReminderService: ReminderServiceProtocol {
         return reminder
     }
 
+    // Merge semantics live in ReminderService; handler tests assert the request instead.
     func updateReminder(_ request: UpdateReminderRequest) async throws -> ReminderModel {
-        lastUpdateRequest = request
-        guard let index = mockReminders.firstIndex(where: { $0.id == request.id }) else {
+        updateRequests.append(request)
+        guard let reminder = mockReminders.first(where: { $0.id == request.id }) else {
             throw MockError.notFound
         }
-        let existing = mockReminders[index]
-
-        let existingDueDate = existing.dueDate.map {
-            ReminderDateValue(date: $0, timeZoneIdentifier: existing.dueTimeZone, isAllDay: existing.isAllDay)
-        }
-        let existingStartDate = existing.startDate.map {
-            ReminderDateValue(
-                date: $0,
-                timeZoneIdentifier: existing.startTimeZone,
-                isAllDay: existing.isStartAllDay
-            )
-        }
-        let newDueDate = request.dueDate.applying(to: existingDueDate)
-        let newStartDate = request.startDate.applying(to: existingStartDate)
-        let newAlarms = request.alarms.applying(to: existing.alarms)
-        if newAlarms?.contains(where: { $0.kind == .relative }) == true,
-           newStartDate == nil {
-            throw MockError.invalidAlarm
-        }
-
-        let updated = ReminderModel(
-            id: existing.id,
-            title: request.title ?? existing.title,
-            notes: request.notes.applying(to: existing.notes),
-            done: request.done ?? existing.done,
-            priority: request.priority ?? existing.priority,
-            dueDate: newDueDate?.date,
-            dueTimeZone: newDueDate?.timeZoneIdentifier,
-            isAllDay: newDueDate?.isAllDay ?? false,
-            listId: request.listId ?? existing.listId,
-            listName: existing.listName,
-            recurrenceRule: request.recurrenceRule.applying(to: existing.recurrenceRule),
-            url: request.url.applying(to: existing.url),
-            location: request.location.applying(to: existing.location),
-            startDate: newStartDate?.date,
-            startTimeZone: newStartDate?.timeZoneIdentifier,
-            isStartAllDay: newStartDate?.isAllDay ?? false,
-            alarms: newAlarms
-        )
-        mockReminders[index] = updated
-        return updated
+        return reminder
     }
 
     @discardableResult
@@ -143,16 +104,5 @@ final class MockReminderService: ReminderServiceProtocol {
 
     enum MockError: Error {
         case notFound
-        case invalidAlarm
-    }
-}
-
-private extension ReminderFieldUpdate {
-    func applying(to currentValue: Value?) -> Value? {
-        switch self {
-        case .unchanged: currentValue
-        case .clear: nil
-        case .set(let value): value
-        }
     }
 }
