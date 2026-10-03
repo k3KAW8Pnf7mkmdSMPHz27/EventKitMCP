@@ -17,7 +17,8 @@ struct QueryRemindersTests {
 
         let firstPage = await queryReminders(service: service)
         guard case .object(let first)? = firstPage.structuredContent,
-              case .array(let firstReminders)? = first["reminders"] else {
+            case .array(let firstReminders)? = first["reminders"]
+        else {
             Issue.record("Expected a structured first page")
             return
         }
@@ -27,7 +28,8 @@ struct QueryRemindersTests {
 
         let secondPage = await queryReminders(limit: 10, offset: 25, service: service)
         guard case .object(let second)? = secondPage.structuredContent,
-              case .array(let secondReminders)? = second["reminders"] else {
+            case .array(let secondReminders)? = second["reminders"]
+        else {
             Issue.record("Expected a structured second page")
             return
         }
@@ -59,31 +61,34 @@ struct QueryRemindersTests {
     @Test("Structured query preserves time zones and every alarm kind")
     func structuredTimeZonesAndAlarms() async throws {
         let service = MockReminderService()
-        service.mockReminders = [ReminderModel(
-            id: "zoned",
-            title: "Zoned reminder",
-            dueDate: TestFixtures.todayNoon,
-            dueTimeZone: "America/Chicago",
-            listId: "default",
-            listName: "Default",
-            startDate: TestFixtures.todayNoon,
-            startTimeZone: "Europe/Paris",
-            alarms: [
-                .relative(minutesBefore: 15),
-                .absolute(TestFixtures.todayNoon),
-                .location(
-                    .init(title: "Office", latitude: 41.8781, longitude: -87.6298, radius: 100),
-                    proximity: .enter
-                )
-            ]
-        )]
+        service.mockReminders = [
+            ReminderModel(
+                id: "zoned",
+                title: "Zoned reminder",
+                dueDate: TestFixtures.todayNoon,
+                dueTimeZone: "America/Chicago",
+                listId: "default",
+                listName: "Default",
+                startDate: TestFixtures.todayNoon,
+                startTimeZone: "Europe/Paris",
+                alarms: [
+                    .relative(minutesBefore: 15),
+                    .absolute(TestFixtures.todayNoon),
+                    .location(
+                        .init(title: "Office", latitude: 41.8781, longitude: -87.6298, radius: 100),
+                        proximity: .enter
+                    )
+                ]
+            )
+        ]
 
         let result = await queryReminders(service: service)
         result.expectSuccess()
         guard let content = result.structuredContent,
-              case .object(let structured) = content,
-              case .array(let reminders)? = structured["reminders"],
-              case .object(let reminder)? = reminders.first else {
+            case .object(let structured) = content,
+            case .array(let reminders)? = structured["reminders"],
+            case .object(let reminder)? = reminders.first
+        else {
             Issue.record("Expected structured reminder output")
             return
         }
@@ -93,9 +98,10 @@ struct QueryRemindersTests {
             Issue.record("Expected structured alarms")
             return
         }
-        #expect(Set(alarms.compactMap { $0.objectValue?["kind"]?.stringValue }) == [
-            "relative", "absolute", "location"
-        ])
+        #expect(
+            Set(alarms.compactMap { $0.objectValue?["kind"]?.stringValue }) == [
+                "relative", "absolute", "location"
+            ])
     }
 
     // MARK: - ID-based search queries

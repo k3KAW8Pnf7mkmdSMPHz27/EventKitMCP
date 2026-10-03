@@ -14,10 +14,13 @@ struct WriteRemindersHandlerTests {
         let service = MockReminderService()
         service.mockReminders = [TestFixtures.reminder(id: "preserve", title: "Original")]
 
-        let result = await writeReminders(upsert: [[
-            "id": .string("preserve"),
-            "title": .string("Updated")
-        ]], service: service)
+        let result = await writeReminders(
+            upsert: [
+                [
+                    "id": .string("preserve"),
+                    "title": .string("Updated")
+                ]
+            ], service: service)
 
         result.expectSuccess()
         let request = try #require(service.updateRequests.last)
@@ -73,11 +76,14 @@ struct WriteRemindersHandlerTests {
     func dateOnlyAnchorsToSuppliedTimeZone() async throws {
         let service = MockReminderService()
 
-        let result = await writeReminders(upsert: [[
-            "title": .string("All-day in Tokyo"),
-            "dueDate": .string("2026-03-15"),
-            "dueTimeZone": .string("Asia/Tokyo")
-        ]], service: service)
+        let result = await writeReminders(
+            upsert: [
+                [
+                    "title": .string("All-day in Tokyo"),
+                    "dueDate": .string("2026-03-15"),
+                    "dueTimeZone": .string("Asia/Tokyo")
+                ]
+            ], service: service)
 
         result.expectSuccess()
         let reminder = try #require(service.mockReminders.first)
@@ -100,10 +106,13 @@ struct WriteRemindersHandlerTests {
     func dateOnlyWithoutTimeZoneUsesLocal() async throws {
         let service = MockReminderService()
 
-        let result = await writeReminders(upsert: [[
-            "title": .string("All-day local"),
-            "dueDate": .string("2026-03-15")
-        ]], service: service)
+        let result = await writeReminders(
+            upsert: [
+                [
+                    "title": .string("All-day local"),
+                    "dueDate": .string("2026-03-15")
+                ]
+            ], service: service)
 
         result.expectSuccess()
         let reminder = try #require(service.mockReminders.first)
@@ -121,16 +130,19 @@ struct WriteRemindersHandlerTests {
         let service = MockReminderService()
         service.mockReminders = [TestFixtures.reminder(id: "clear-me", title: "Clear fields")]
 
-        let result = await writeReminders(upsert: [[
-            "id": .string("clear-me"),
-            "notes": .null,
-            "dueDate": .null,
-            "location": .null,
-            "url": .null,
-            "startDate": .null,
-            "recurrence": .null,
-            "alarms": .null
-        ]], service: service)
+        let result = await writeReminders(
+            upsert: [
+                [
+                    "id": .string("clear-me"),
+                    "notes": .null,
+                    "dueDate": .null,
+                    "location": .null,
+                    "url": .null,
+                    "startDate": .null,
+                    "recurrence": .null,
+                    "alarms": .null
+                ]
+            ], service: service)
 
         result.expectSuccess()
         let request = try #require(service.updateRequests.last)
@@ -147,11 +159,13 @@ struct WriteRemindersHandlerTests {
 
     @Test("Create single reminder via upsert")
     func testCreateSingleReminder() async throws {
-        let result = await writeReminders(upsert: [[
-            "title": .string("Buy groceries"),
-            "notes": .string("Milk, eggs, bread"),
-            "priority": .string("medium")
-        ]])
+        let result = await writeReminders(upsert: [
+            [
+                "title": .string("Buy groceries"),
+                "notes": .string("Milk, eggs, bread"),
+                "priority": .string("medium")
+            ]
+        ])
 
         result.expectText(containing: "Created 1", "Buy groceries", "Milk, eggs, bread")
     }
@@ -176,10 +190,12 @@ struct WriteRemindersHandlerTests {
 
     @Test("Create reminder with URL")
     func testCreateWithURL() async throws {
-        let result = await writeReminders(upsert: [[
-            "title": .string("Check docs"),
-            "url": .string("https://example.com/docs")
-        ]])
+        let result = await writeReminders(upsert: [
+            [
+                "title": .string("Check docs"),
+                "url": .string("https://example.com/docs")
+            ]
+        ])
 
         result.expectText(containing: "Created 1", "URL: https://example.com/docs")
     }
@@ -191,10 +207,13 @@ struct WriteRemindersHandlerTests {
             TestFixtures.reminder(id: "rem-1", title: "Check docs")
         ]
 
-        let result = await writeReminders(upsert: [[
-            "id": .string("rem-1"),
-            "url": .string("https://example.com/updated")
-        ]], service: service)
+        let result = await writeReminders(
+            upsert: [
+                [
+                    "id": .string("rem-1"),
+                    "url": .string("https://example.com/updated")
+                ]
+            ], service: service)
 
         result.expectText(containing: "Updated 1")
         #expect(service.updateRequests.last?.url == .set("https://example.com/updated"))
@@ -202,10 +221,12 @@ struct WriteRemindersHandlerTests {
 
     @Test("Create reminder with location")
     func testCreateWithLocation() async throws {
-        let result = await writeReminders(upsert: [[
-            "title": .string("Meeting"),
-            "location": .string("Conference Room B")
-        ]])
+        let result = await writeReminders(upsert: [
+            [
+                "title": .string("Meeting"),
+                "location": .string("Conference Room B")
+            ]
+        ])
 
         result.expectText(containing: "Created 1", "Location: Conference Room B")
     }
@@ -217,10 +238,13 @@ struct WriteRemindersHandlerTests {
             TestFixtures.reminder(id: "rem-1", title: "Meeting")
         ]
 
-        let result = await writeReminders(upsert: [[
-            "id": .string("rem-1"),
-            "location": .string("Room 42")
-        ]], service: service)
+        let result = await writeReminders(
+            upsert: [
+                [
+                    "id": .string("rem-1"),
+                    "location": .string("Room 42")
+                ]
+            ], service: service)
 
         result.expectText(containing: "Updated 1")
         #expect(service.updateRequests.last?.location == .set("Room 42"))
@@ -228,17 +252,20 @@ struct WriteRemindersHandlerTests {
 
     @Test("Create reminder with alarms")
     func testCreateWithAlarms() async throws {
-        let result = await writeReminders(upsert: [[
-            "title": .string("Meeting"),
-            "dueDate": .string("2026-06-01T10:00:00"),
-            "startDate": .string("2026-06-01T10:00:00"),
-            "alarms": .array([0, 15, 60].map { minutes in
-                .object([
-                    "kind": .string("relative"),
-                    "minutesBefore": .int(minutes)
-                ])
-            })
-        ]])
+        let result = await writeReminders(upsert: [
+            [
+                "title": .string("Meeting"),
+                "dueDate": .string("2026-06-01T10:00:00"),
+                "startDate": .string("2026-06-01T10:00:00"),
+                "alarms": .array(
+                    [0, 15, 60].map { minutes in
+                        .object([
+                            "kind": .string("relative"),
+                            "minutesBefore": .int(minutes)
+                        ])
+                    })
+            ]
+        ])
 
         result.expectText(
             containing: "Created 1", "Alarms:", "at start", "15 min before start", "60 min before start"
@@ -257,13 +284,18 @@ struct WriteRemindersHandlerTests {
             )
         ]
 
-        let result = await writeReminders(upsert: [[
-            "id": .string("rem-1"),
-            "alarms": .array([.object([
-                "kind": .string("relative"),
-                "minutesBefore": .int(30)
-            ])])
-        ]], service: service)
+        let result = await writeReminders(
+            upsert: [
+                [
+                    "id": .string("rem-1"),
+                    "alarms": .array([
+                        .object([
+                            "kind": .string("relative"),
+                            "minutesBefore": .int(30)
+                        ])
+                    ])
+                ]
+            ], service: service)
 
         result.expectText(containing: "Updated 1")
         #expect(service.updateRequests.last?.alarms == .set([.relative(minutesBefore: 30)]))
@@ -276,10 +308,13 @@ struct WriteRemindersHandlerTests {
             TestFixtures.reminder(id: "rem-1", title: "Meeting", alarms: [15, 60])
         ]
 
-        let result = await writeReminders(upsert: [[
-            "id": .string("rem-1"),
-            "alarms": .null
-        ]], service: service)
+        let result = await writeReminders(
+            upsert: [
+                [
+                    "id": .string("rem-1"),
+                    "alarms": .null
+                ]
+            ], service: service)
 
         result.expectText(containing: "Updated 1")
         #expect(service.updateRequests.last?.alarms == .clear)
@@ -287,21 +322,25 @@ struct WriteRemindersHandlerTests {
 
     @Test("Create reminder with start date")
     func testCreateWithStartDate() async throws {
-        let result = await writeReminders(upsert: [[
-            "title": .string("Project kickoff"),
-            "startDate": .string("2026-06-01T09:00:00"),
-            "dueDate": .string("2026-06-15T17:00:00")
-        ]])
+        let result = await writeReminders(upsert: [
+            [
+                "title": .string("Project kickoff"),
+                "startDate": .string("2026-06-01T09:00:00"),
+                "dueDate": .string("2026-06-15T17:00:00")
+            ]
+        ])
 
         result.expectText(containing: "Created 1", "Start:", "Due:")
     }
 
     @Test("Create reminder with all-day start date")
     func testCreateWithAllDayStartDate() async throws {
-        let result = await writeReminders(upsert: [[
-            "title": .string("Vacation"),
-            "startDate": .string("2026-07-01")
-        ]])
+        let result = await writeReminders(upsert: [
+            [
+                "title": .string("Vacation"),
+                "startDate": .string("2026-07-01")
+            ]
+        ])
 
         result.expectText(containing: "Created 1", "Start:")
     }
@@ -313,10 +352,13 @@ struct WriteRemindersHandlerTests {
             TestFixtures.reminder(id: "rem-1", title: "Task", startDate: TestFixtures.tomorrow)
         ]
 
-        let result = await writeReminders(upsert: [[
-            "id": .string("rem-1"),
-            "startDate": .null
-        ]], service: service)
+        let result = await writeReminders(
+            upsert: [
+                [
+                    "id": .string("rem-1"),
+                    "startDate": .null
+                ]
+            ], service: service)
 
         result.expectText(containing: "Updated 1")
         #expect(service.updateRequests.last?.startDate == .clear)
@@ -331,11 +373,14 @@ struct WriteRemindersHandlerTests {
             TestFixtures.reminder(id: "rem-1", title: "Original")
         ]
 
-        let result = await writeReminders(upsert: [[
-            "id": .string("rem-1"),
-            "title": .string("Updated title"),
-            "done": .bool(true)
-        ]], service: service)
+        let result = await writeReminders(
+            upsert: [
+                [
+                    "id": .string("rem-1"),
+                    "title": .string("Updated title"),
+                    "done": .bool(true)
+                ]
+            ], service: service)
 
         result.expectText(containing: "Updated 1")
         let request = try #require(service.updateRequests.last)
@@ -351,10 +396,11 @@ struct WriteRemindersHandlerTests {
             TestFixtures.reminder(id: "rem-2", title: "Task 2")
         ]
 
-        let result = await writeReminders(upsert: [
-            ["id": .string("rem-1"), "done": .bool(true)],
-            ["id": .string("rem-2"), "priority": .string("high")]
-        ], service: service)
+        let result = await writeReminders(
+            upsert: [
+                ["id": .string("rem-1"), "done": .bool(true)],
+                ["id": .string("rem-2"), "priority": .string("high")]
+            ], service: service)
 
         result.expectText(containing: "Updated 2")
         #expect(service.updateRequests.map(\.id) == ["rem-1", "rem-2"])
@@ -401,10 +447,11 @@ struct WriteRemindersHandlerTests {
             TestFixtures.reminder(id: "existing-1", title: "Existing task")
         ]
 
-        let result = await writeReminders(upsert: [
-            ["title": .string("New task")],  // create (no id)
-            ["id": .string("existing-1"), "done": .bool(true)]  // update (has id)
-        ], service: service)
+        let result = await writeReminders(
+            upsert: [
+                ["title": .string("New task")],  // create (no id)
+                ["id": .string("existing-1"), "done": .bool(true)]  // update (has id)
+            ], service: service)
 
         result.expectText(containing: "Created 1", "Updated 1")
     }
@@ -436,30 +483,36 @@ struct WriteRemindersHandlerTests {
 
     @Test("Empty arrays returns error")
     func testEmptyArrays() async throws {
-        let result = await callTool("write_reminders", arguments: [
-            "upsert": .array([]),
-            "delete": .array([])
-        ])
+        let result = await callTool(
+            "write_reminders",
+            arguments: [
+                "upsert": .array([]),
+                "delete": .array([])
+            ])
 
         result.expectError(containing: "At least one of 'upsert' or 'delete' required")
     }
 
     @Test("Invalid date format reports failure")
     func testInvalidDateFormat() async throws {
-        let result = await writeReminders(upsert: [[
-            "title": .string("Task with bad date"),
-            "dueDate": .string("next tuesday")
-        ]])
+        let result = await writeReminders(upsert: [
+            [
+                "title": .string("Task with bad date"),
+                "dueDate": .string("next tuesday")
+            ]
+        ])
 
         result.expectText(containing: "Failed", "Invalid date")
     }
 
     @Test("Invalid priority reports failure")
     func testInvalidPriority() async throws {
-        let result = await writeReminders(upsert: [[
-            "title": .string("Task with bad priority"),
-            "priority": .string("urgent")
-        ]])
+        let result = await writeReminders(upsert: [
+            [
+                "title": .string("Task with bad priority"),
+                "priority": .string("urgent")
+            ]
+        ])
 
         result.expectText(containing: "Failed", "Invalid priority")
     }

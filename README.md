@@ -246,13 +246,18 @@ Alarms use one of these tagged object shapes:
 
 The supported development baseline is Xcode 26 with Swift 6.2 or newer. The runtime
 deployment target remains macOS 14. Dependencies are pinned in `Package.resolved`.
-Debug builds treat warnings as errors; release builds only report them. CI runs
-`swift build -c release` and `swift test`, nothing else.
+Debug builds treat warnings as errors; release builds only report them. CI runs the
+two lints, `swift build -c release` and `swift test`, nothing else. SwiftLint is
+pinned in CI (`brew install swiftlint` locally); `swift format` ships with Xcode.
 
 ```bash
 swift build              # Build (warnings are errors)
 swift test               # Run tests (what CI runs)
 swift build -c release   # Build release (what CI and Homebrew run)
+
+swift format format --in-place --recursive --parallel Sources Tests Package.swift
+swift format lint --strict --recursive --parallel Sources Tests Package.swift
+swiftlint lint --strict  # size and complexity ceilings; lower them when a maximum shrinks
 
 # Interactive debugging with MCP Inspector
 npx @modelcontextprotocol/inspector .build/debug/eventkit-mcp-server
