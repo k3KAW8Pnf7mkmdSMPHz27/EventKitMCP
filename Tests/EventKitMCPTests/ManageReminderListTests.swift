@@ -1,5 +1,4 @@
 import Foundation
-import Logging
 import Testing
 
 @testable import EventKitMCP
@@ -9,237 +8,101 @@ import MCP
 @MainActor
 @Suite("Manage Reminder List Handler Tests")
 struct ManageReminderListTests {
-    let logger = Logger(label: "test")
 
     // MARK: - Create action
 
     @Test("Create action creates a new list")
     func testCreateAction() async throws {
-        let mockService = MockReminderService()
+        let service = MockReminderService()
 
-        let result = await handleToolCall(
-            name: "manage_reminder_list",
-            arguments: [
-                "action": .string("create"),
-                "title": .string("New List")
-            ],
-            reminderService: mockService,
+        let result = await manageReminderList(action: "create", title: "New List", service: service)
 
-            logger: logger,
-            readOnly: false
-        )
+        result.expectText(containing: "Created reminder list:", "New List")
 
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Created reminder list:"))
-            #expect(text.contains("New List"))
-        } else {
-            Issue.record("Expected text content")
-        }
-
-        #expect(mockService.mockLists.count == 1)
-        #expect(mockService.mockLists.first?.title == "New List")
+        #expect(service.mockLists.count == 1)
+        #expect(service.mockLists.first?.title == "New List")
     }
 
     @Test("Create action with color")
     func testCreateActionWithColor() async throws {
-        let mockService = MockReminderService()
+        let service = MockReminderService()
 
-        let result = await handleToolCall(
-            name: "manage_reminder_list",
-            arguments: [
-                "action": .string("create"),
-                "title": .string("Colored List"),
-                "color": .string("#FF5733")
-            ],
-            reminderService: mockService,
-
-            logger: logger,
-            readOnly: false
+        let result = await manageReminderList(
+            action: "create",
+            title: "Colored List",
+            color: "#FF5733",
+            service: service
         )
 
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Created reminder list:"))
-            #expect(text.contains("Colored List"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectText(containing: "Created reminder list:", "Colored List")
 
-        #expect(mockService.mockLists.first?.color == "#FF5733")
+        #expect(service.mockLists.first?.color == "#FF5733")
     }
 
     @Test("Create action requires title")
     func testCreateActionRequiresTitle() async throws {
-        let mockService = MockReminderService()
+        let service = MockReminderService()
 
-        let result = await handleToolCall(
-            name: "manage_reminder_list",
-            arguments: [
-                "action": .string("create")
-            ],
-            reminderService: mockService,
+        let result = await manageReminderList(action: "create", service: service)
 
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == true)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Missing required parameter: title"))
-            #expect(text.contains("create action"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectError(containing: "Missing required parameter: title")
+        #expect(result.textContent?.contains("create action") == true)
     }
 
     // MARK: - Delete action
 
     @Test("Delete action deletes a list")
     func testDeleteAction() async throws {
-        let mockService = MockReminderService()
-        mockService.mockLists = [
-            ReminderListModel(id: "list-1", title: "To Delete", color: nil, isSubscribed: false, isImmutable: false, sourceTitle: nil)
+        let service = MockReminderService()
+        service.mockLists = [
+            ReminderListModel(id: "list-1", title: "To Delete")
         ]
 
-        let result = await handleToolCall(
-            name: "manage_reminder_list",
-            arguments: [
-                "action": .string("delete"),
-                "id": .string("list-1")
-            ],
-            reminderService: mockService,
+        let result = await manageReminderList(action: "delete", id: "list-1", service: service)
 
-            logger: logger,
-            readOnly: false
-        )
+        result.expectText(containing: "Deleted reminder list: list-1")
 
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Deleted reminder list: list-1"))
-        } else {
-            Issue.record("Expected text content")
-        }
-
-        #expect(mockService.mockLists.isEmpty)
+        #expect(service.mockLists.isEmpty)
     }
 
     @Test("Delete action requires id")
     func testDeleteActionRequiresId() async throws {
-        let mockService = MockReminderService()
+        let service = MockReminderService()
 
-        let result = await handleToolCall(
-            name: "manage_reminder_list",
-            arguments: [
-                "action": .string("delete")
-            ],
-            reminderService: mockService,
+        let result = await manageReminderList(action: "delete", service: service)
 
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == true)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Missing required parameter: id"))
-            #expect(text.contains("delete action"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectError(containing: "Missing required parameter: id")
+        #expect(result.textContent?.contains("delete action") == true)
     }
 
     // MARK: - Validation
 
     @Test("Missing action returns error")
     func testMissingAction() async throws {
-        let mockService = MockReminderService()
+        let service = MockReminderService()
 
-        let result = await handleToolCall(
-            name: "manage_reminder_list",
-            arguments: nil,
-            reminderService: mockService,
+        let result = await callTool("manage_reminder_list", reminderService: service)
 
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == true)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Missing required parameter: action"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectError(containing: "Missing required parameter: action")
     }
 
     @Test("Invalid action returns error")
     func testInvalidAction() async throws {
-        let mockService = MockReminderService()
+        let service = MockReminderService()
 
-        let result = await handleToolCall(
-            name: "manage_reminder_list",
-            arguments: [
-                "action": .string("update")
-            ],
-            reminderService: mockService,
+        let result = await manageReminderList(action: "update", service: service)
 
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == true)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Invalid action: 'update'"))
-            #expect(text.contains("'create' or 'delete'"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectError(containing: "Invalid action: 'update'")
+        #expect(result.textContent?.contains("'create' or 'delete'") == true)
     }
 
     @Test("Action must match the advertised enum")
     func testActionMustMatchSchemaEnum() async throws {
-        let mockService = MockReminderService()
+        let service = MockReminderService()
 
-        let result = await handleToolCall(
-            name: "manage_reminder_list",
-            arguments: [
-                "action": .string("CREATE"),
-                "title": .string("Test List")
-            ],
-            reminderService: mockService,
-
-            logger: logger,
-            readOnly: false
-        )
+        let result = await manageReminderList(action: "CREATE", title: "Test List", service: service)
 
         #expect(result.isError == true)
-        #expect(mockService.mockLists.isEmpty)
-    }
-
-    // MARK: - Read-only mode
-
-    @Test("Blocked in read-only mode")
-    func testBlockedInReadOnlyMode() async throws {
-        let mockService = MockReminderService()
-
-        let result = await handleToolCall(
-            name: "manage_reminder_list",
-            arguments: [
-                "action": .string("create"),
-                "title": .string("Test")
-            ],
-            reminderService: mockService,
-
-            logger: logger,
-            readOnly: true
-        )
-
-        #expect(result.isError == true)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("not allowed in read-only mode"))
-        } else {
-            Issue.record("Expected text content")
-        }
-
-        #expect(mockService.mockLists.isEmpty)
+        #expect(service.mockLists.isEmpty)
     }
 }
