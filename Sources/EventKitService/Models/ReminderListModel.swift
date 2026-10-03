@@ -10,7 +10,6 @@ public struct ReminderListModel: Sendable, Identifiable {
     public let isSubscribed: Bool
     public let isImmutable: Bool
     public let sourceTitle: String?
-    public let reminderCount: Int?
 
     public init(
         id: String,
@@ -18,8 +17,7 @@ public struct ReminderListModel: Sendable, Identifiable {
         color: String? = nil,
         isSubscribed: Bool = false,
         isImmutable: Bool = false,
-        sourceTitle: String? = nil,
-        reminderCount: Int? = nil
+        sourceTitle: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -27,7 +25,6 @@ public struct ReminderListModel: Sendable, Identifiable {
         self.isSubscribed = isSubscribed
         self.isImmutable = isImmutable
         self.sourceTitle = sourceTitle
-        self.reminderCount = reminderCount
     }
 }
 

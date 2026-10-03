@@ -18,7 +18,7 @@ public actor ReminderService: ReminderServiceProtocol {
     let reminderStore: any ReminderStore
     let logger: Logger
     let listAccess: ListAccessPolicy
-    private let operationGate = EventStoreOperationGate()
+    private let operationGate: EventStoreOperationGate
     private let operationTimeout: Duration
     private var pendingReminderFetch: PendingReminderFetch?
 
@@ -41,8 +41,10 @@ public actor ReminderService: ReminderServiceProtocol {
         reminderStore: (any ReminderStore)?,
         logger: Logger = Logger(label: "eventkit.reminder-service"),
         allowedListIds: Set<String>? = nil,
-        operationTimeout: Duration = .seconds(15)
+        operationTimeout: Duration = .seconds(15),
+        operationGate: EventStoreOperationGate = EventStoreOperationGate()
     ) {
+        self.operationGate = operationGate
         self.eventStore = eventStore
         self.reminderStore = reminderStore ?? eventStore
         self.logger = logger
@@ -64,9 +66,10 @@ public actor ReminderService: ReminderServiceProtocol {
     ///
     /// Call once after access is granted. A stale or mistyped `--allowed-lists` entry
     /// would otherwise narrow silently, and an entry matching nothing at all would
-    /// leave the restriction in place with no lists behind it.
-    public func validateAllowedLists() async -> AllowedListValidation {
-        await withGateOrUnvalidated { service in
+    /// leave the restriction in place with no lists behind it. Throws `operationTimedOut`
+    /// rather than reporting an unchecked allowlist as valid.
+    public func validateAllowedLists() async throws -> AllowedListValidation {
+        try await withExclusiveEventStoreAccess { service in
             let available = Set(
                 service.reminderStore.reminderCalendars().map(\.calendarIdentifier)
             )
@@ -76,21 +79,6 @@ public actor ReminderService: ReminderServiceProtocol {
                 unresolvedIds: service.listAccess.unresolvedIds(available: available)
             )
         }
-    }
-
-    private func withGateOrUnvalidated(
-        _ body: @Sendable (isolated ReminderService) async -> AllowedListValidation
-    ) async -> AllowedListValidation {
-        guard (try? await operationGate.acquire(timeout: operationTimeout)) != nil else {
-            return .unrestricted
-        }
-        let result = await body(self)
-        await operationGate.release()
-        return result
-    }
-
-    public func getList(id: String) async throws -> ReminderListModel? {
-        try await withExclusiveEventStoreAccess { try await $0.getListImpl(id: id) }
     }
 
     public func createList(_ request: CreateListRequest) async throws -> ReminderListModel {
@@ -105,10 +93,6 @@ public actor ReminderService: ReminderServiceProtocol {
         try await withExclusiveEventStoreAccess {
             try await $0.getRemindersImpl(listId: listId, includeDone: includeDone)
         }
-    }
-
-    public func getReminder(id: String) async throws -> ReminderModel? {
-        try await withExclusiveEventStoreAccess { try await $0.getReminderImpl(id: id) }
     }
 
     public func createReminder(_ request: CreateReminderRequest) async throws -> ReminderModel {

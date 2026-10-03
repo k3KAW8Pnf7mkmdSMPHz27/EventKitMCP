@@ -62,8 +62,6 @@ enum EventKitMapping {
             doneDate: reminder.completionDate,
             listId: reminder.calendar.calendarIdentifier,
             listName: reminder.calendar.title,
-            creationDate: reminder.creationDate,
-            lastModifiedDate: reminder.lastModifiedDate,
             recurrenceRule: recurrenceRule,
             url: reminder.url?.absoluteString,
             location: reminder.location,

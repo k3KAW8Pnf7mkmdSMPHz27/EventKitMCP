@@ -287,13 +287,9 @@ struct ReminderServiceWriteTests {
 
     // MARK: - Hidden and missing reminders
 
-    @Test("A reminder in a hidden list reads, updates and deletes like a missing one")
+    @Test("A reminder in a hidden list updates and deletes like a missing one")
     func hiddenReminderLooksMissing() async throws {
         let f = Self.fixture { work, _ in [work] }
-
-        #expect(try await f.service.getReminder(id: f.hiddenId) == nil)
-        #expect(try await f.service.getReminder(id: "missing") == nil)
-        #expect(try await f.service.getReminder(id: f.existingId)?.title == "Existing")
 
         await #expect(throws: ReminderServiceError.reminderAccessDenied(f.hiddenId)) {
             try await f.service.updateReminder(UpdateReminderRequest(id: f.hiddenId, title: "x"))
@@ -321,7 +317,6 @@ struct ReminderServiceWriteTests {
         #expect(model.title == "Existing")
         #expect(model.listId == f.workId)
         #expect(f.store.removed.map(\.calendarItemIdentifier) == [f.existingId])
-        #expect(try await f.service.getReminder(id: f.existingId) == nil)
     }
 
     // MARK: - Lists

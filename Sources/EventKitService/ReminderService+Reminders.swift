@@ -25,17 +25,6 @@ extension ReminderService {
         return try await fetchReminderModels(predicate: predicate)
     }
 
-    func getReminderImpl(id: String) async throws -> ReminderModel? {
-        do {
-            return EventKitMapping.mapReminderToModel(try reminderInAllowlist(id: id))
-        } catch ReminderServiceError.reminderNotFound, ReminderServiceError.reminderAccessDenied {
-            // Report an out-of-allowlist reminder exactly as a missing one. Throwing here
-            // while a nonexistent ID returns nil would confirm that a reminder exists
-            // outside the caller's permitted lists.
-            return nil
-        }
-    }
-
     func createReminderImpl(_ request: CreateReminderRequest) async throws -> ReminderModel {
         let reminder = EKReminder(eventStore: eventStore)
         reminder.title = request.title

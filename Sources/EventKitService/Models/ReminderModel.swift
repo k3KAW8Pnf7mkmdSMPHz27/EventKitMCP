@@ -16,8 +16,6 @@ public struct ReminderModel: Sendable, Identifiable {
     public let doneDate: Date?
     public let listId: String
     public let listName: String
-    public let creationDate: Date?
-    public let lastModifiedDate: Date?
     /// Recurrence rule in RRULE format (RFC 5545), e.g., "FREQ=WEEKLY;BYDAY=MO,WE,FR"
     public let recurrenceRule: String?
     public let url: String?
@@ -39,8 +37,6 @@ public struct ReminderModel: Sendable, Identifiable {
         doneDate: Date? = nil,
         listId: String,
         listName: String,
-        creationDate: Date? = nil,
-        lastModifiedDate: Date? = nil,
         recurrenceRule: String? = nil,
         url: String? = nil,
         location: String? = nil,
@@ -60,8 +56,6 @@ public struct ReminderModel: Sendable, Identifiable {
         self.doneDate = doneDate
         self.listId = listId
         self.listName = listName
-        self.creationDate = creationDate
-        self.lastModifiedDate = lastModifiedDate
         self.recurrenceRule = recurrenceRule
         self.url = url
         self.location = location
@@ -75,7 +69,7 @@ public struct ReminderModel: Sendable, Identifiable {
 // MARK: - Reminder Priority
 
 /// Priority levels for reminders
-public enum ReminderPriority: Int, Sendable, CaseIterable {
+public enum ReminderPriority: Int, Sendable {
     case none = 0
     case high = 1
     case medium = 5

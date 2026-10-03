@@ -99,7 +99,13 @@ struct EventKitMCPServer: AsyncParsableCommand {
         }
 
         if allowedListIds != nil {
-            let validation = await reminderService.validateAllowedLists()
+            let validation: AllowedListValidation
+            do {
+                validation = try await reminderService.validateAllowedLists()
+            } catch {
+                logger.error("Failed to check allowed lists: \(error.localizedDescription)")
+                throw ExitCode.failure
+            }
             for id in validation.unresolvedIds {
                 logger.warning("Allowed list not found: \(id)")
             }

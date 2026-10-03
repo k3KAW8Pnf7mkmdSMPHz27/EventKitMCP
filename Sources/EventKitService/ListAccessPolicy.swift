@@ -26,12 +26,6 @@ public struct ListAccessPolicy: Sendable, Equatable {
         return allowedIds.contains(id)
     }
 
-    /// Narrow `ids` to the permitted set, preserving order.
-    public func filter(_ ids: [String]) -> [String] {
-        guard let allowedIds else { return ids }
-        return ids.filter { allowedIds.contains($0) }
-    }
-
     /// Whether a filtered result of `count` lists means access has collapsed to nothing.
     ///
     /// EventKit treats an empty `calendars:` array as "every calendar", so handing it
@@ -57,13 +51,6 @@ public struct AllowedListValidation: Sendable, Equatable {
     public let isRestricted: Bool
     public let resolvedCount: Int
     public let unresolvedIds: [String]
-
-    /// No allowlist configured, so nothing to validate.
-    public static let unrestricted = AllowedListValidation(
-        isRestricted: false,
-        resolvedCount: 0,
-        unresolvedIds: []
-    )
 
     public init(isRestricted: Bool, resolvedCount: Int, unresolvedIds: [String]) {
         self.isRestricted = isRestricted

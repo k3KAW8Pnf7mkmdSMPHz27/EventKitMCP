@@ -21,10 +21,6 @@ final class MockReminderService: ReminderServiceProtocol {
         return mockLists
     }
 
-    func getList(id: String) async throws -> ReminderListModel? {
-        return mockLists.first { $0.id == id }
-    }
-
     func createList(_ request: CreateListRequest) async throws -> ReminderListModel {
         let list = ReminderListModel(
             id: UUID().uuidString,
@@ -54,10 +50,6 @@ final class MockReminderService: ReminderServiceProtocol {
             result = result.filter { !$0.done }
         }
         return result
-    }
-
-    func getReminder(id: String) async throws -> ReminderModel? {
-        return mockReminders.first { $0.id == id }
     }
 
     func createReminder(_ request: CreateReminderRequest) async throws -> ReminderModel {

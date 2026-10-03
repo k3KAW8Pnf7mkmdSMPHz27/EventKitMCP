@@ -11,7 +11,6 @@ struct ListAccessPolicyTests {
 
         #expect(!policy.isRestricted)
         #expect(policy.isAllowed("anything"))
-        #expect(policy.filter(["a", "b"]) == ["a", "b"])
     }
 
     @Test("Restricted policy admits only configured lists")
@@ -21,7 +20,6 @@ struct ListAccessPolicyTests {
         #expect(policy.isRestricted)
         #expect(policy.isAllowed("list-1"))
         #expect(!policy.isAllowed("list-2"))
-        #expect(policy.filter(["list-1", "list-2"]) == ["list-1"])
     }
 
     @Test("An allowlist matching nothing is treated as an empty match, not as unrestricted")
@@ -70,7 +68,6 @@ struct ListAccessPolicyTests {
 
         #expect(noneResolved.isFatal)
         #expect(!someResolved.isFatal)
-        #expect(!AllowedListValidation.unrestricted.isFatal)
     }
 }
 

@@ -68,21 +68,42 @@ struct AllowlistReminderStoreTests {
     }
 
     @Test("Validation names the unresolved IDs and is fatal only when none resolve")
-    func validationReportsUnresolved() async {
-        let partial = await Self.fixture { ids in [ids[0], "stale"] }.service.validateAllowedLists()
+    func validationReportsUnresolved() async throws {
+        let partial = try await Self.fixture { ids in [ids[0], "stale"] }.service.validateAllowedLists()
         #expect(partial.isRestricted)
         #expect(partial.resolvedCount == 1)
         #expect(partial.unresolvedIds == ["stale"])
         #expect(!partial.isFatal)
 
-        let none = await Self.fixture { _ in ["gone"] }.service.validateAllowedLists()
+        let none = try await Self.fixture { _ in ["gone"] }.service.validateAllowedLists()
         #expect(none.resolvedCount == 0)
         #expect(none.unresolvedIds == ["gone"])
         #expect(none.isFatal)
 
-        let open = await Self.fixture { _ in nil }.service.validateAllowedLists()
+        let open = try await Self.fixture { _ in nil }.service.validateAllowedLists()
         #expect(!open.isRestricted)
         #expect(!open.isFatal)
+    }
+
+    @Test("Validation that cannot reach the event store throws instead of passing")
+    func validationTimesOutClosed() async throws {
+        // The old fallback answered a busy gate as "unrestricted", and startup carried on.
+        let eventStore = EKEventStore()
+        let calendar = EKCalendar(for: .reminder, eventStore: eventStore)
+        let gate = EventStoreOperationGate()
+        let service = ReminderService(
+            eventStore: eventStore,
+            reminderStore: StubReminderStore(calendars: [calendar]),
+            allowedListIds: [calendar.calendarIdentifier],
+            operationTimeout: .milliseconds(10),
+            operationGate: gate
+        )
+        try await gate.acquire(timeout: .seconds(1))
+        await #expect(throws: ReminderServiceError.operationTimedOut) {
+            try await service.validateAllowedLists()
+        }
+        await gate.release()
+        #expect(try await service.validateAllowedLists().resolvedCount == 1)
     }
 
     @Test("A machine with no lists is empty, not misconfigured, unless restricted")
@@ -90,12 +111,12 @@ struct AllowlistReminderStoreTests {
         let open = Self.fixture(titles: []) { _ in nil }
         _ = try await open.service.getReminders(listId: nil, includeDone: true)
         #expect(open.store.predicateCalendarCounts == [0])
-        #expect(!(await open.service.validateAllowedLists().isFatal))
+        #expect(!(try await open.service.validateAllowedLists().isFatal))
 
         let restricted = Self.fixture(titles: []) { _ in ["anything"] }
         #expect(try await restricted.service.getReminders(listId: nil, includeDone: true).isEmpty)
         #expect(restricted.store.predicateCalendarCounts.isEmpty)
-        #expect(await restricted.service.validateAllowedLists().isFatal)
+        #expect(try await restricted.service.validateAllowedLists().isFatal)
     }
 
     @Test("A list query checks the allowlist before looking the list up")
