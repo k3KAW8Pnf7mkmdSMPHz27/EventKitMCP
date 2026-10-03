@@ -390,25 +390,11 @@ private func formatWriteResult(
     }
     lines.append(summaryParts.joined(separator: ". ") + (summaryParts.isEmpty ? "" : "."))
 
-    // Deleted reminders (with full details)
-    if !deleted.isEmpty {
+    for (heading, reminders) in [("Deleted:", deleted), ("Created:", created), ("Updated:", updated)]
+    where !reminders.isEmpty {
         lines.append("")
-        lines.append("Deleted:")
-        lines.append(formatReminders(deleted))
-    }
-
-    // Created reminders
-    if !created.isEmpty {
-        lines.append("")
-        lines.append("Created:")
-        lines.append(formatReminders(created))
-    }
-
-    // Updated reminders
-    if !updated.isEmpty {
-        lines.append("")
-        lines.append("Updated:")
-        lines.append(formatReminders(updated))
+        lines.append(heading)
+        lines.append(formatReminders(reminders))
     }
 
     // Failures
@@ -448,7 +434,7 @@ private func handleManageReminderList(
         let list = try await reminderService.createList(request)
         return try .success(
             "Created reminder list:\n\(formatList(list))",
-            structuredContent: ManageReminderListOutput(action: "create", id: list.id, list: list.output)
+            structuredContent: ManageReminderListOutput(action: action.rawValue, id: list.id, list: list.output)
         )
 
     case .delete:
@@ -458,7 +444,7 @@ private func handleManageReminderList(
         try await reminderService.deleteList(id: id)
         return try .success(
             "Deleted reminder list: \(id)",
-            structuredContent: ManageReminderListOutput(action: "delete", id: id, list: nil)
+            structuredContent: ManageReminderListOutput(action: action.rawValue, id: id, list: nil)
         )
     }
 }
@@ -485,33 +471,20 @@ private func handleGetOverview(
     let upcoming = ReminderFilters.upcoming(reminders, days: 7, from: now)
     let attention = ReminderFilters.needsAttention(reminders)
 
-    // Count incomplete reminders per list
-    let countsByList = Dictionary(grouping: reminders, by: \.listId)
-        .mapValues { $0.count }
-
-    // Per-list stats for overdue and priority
-    let overdueByList = Dictionary(grouping: overdue, by: \.listId)
-        .mapValues { $0.count }
-    let highPriorityByList = Dictionary(grouping: reminders.filter { $0.priority == .high }, by: \.listId)
-        .mapValues { $0.count }
-    let mediumPriorityByList = Dictionary(grouping: reminders.filter { $0.priority == .medium }, by: \.listId)
-        .mapValues { $0.count }
-
     // Count scheduled (has due date) vs unscheduled
     let scheduled = reminders.filter { $0.dueDate != nil }
     let unscheduled = reminders.filter { $0.dueDate == nil }
-    let unscheduledAttention = unscheduled.filter { $0.priority == .high || $0.priority == .medium }
 
     let output = formatOverview(
         now: now,
         lists: lists,
-        countsByList: countsByList,
-        overdueByList: overdueByList,
-        highPriorityByList: highPriorityByList,
-        mediumPriorityByList: mediumPriorityByList,
+        countsByList: countByList(reminders),
+        overdueByList: countByList(overdue),
+        highPriorityByList: countByList(reminders.filter { $0.priority == .high }),
+        mediumPriorityByList: countByList(reminders.filter { $0.priority == .medium }),
         scheduledCount: scheduled.count,
-        unscheduledAttentionCount: unscheduledAttention.count,
-        unscheduledOtherCount: unscheduled.count - unscheduledAttention.count,
+        unscheduledAttentionCount: attention.count,
+        unscheduledOtherCount: unscheduled.count - attention.count,
         overdue: overdue,
         today: today,
         upcoming: upcoming,
@@ -588,8 +561,7 @@ private func formatOverview(
         lines.append("")
         lines.append("ATTENTION (high/medium priority, no due date):")
         for r in attention {
-            let priorityStr = r.priority == .high ? " (high)" : " (medium)"
-            lines.append("- \(r.title)\(priorityStr) in \(r.listName)")
+            lines.append("- \(r.title)\(formatPriorityLabel(r.priority)) in \(r.listName)")
         }
     }
 
@@ -600,7 +572,7 @@ private func formatOverview(
         let maxOverdue = 10
         for r in overdue.prefix(maxOverdue) {
             let priorityStr = formatPriorityLabel(r.priority)
-            let dueStr = r.dueDate.map { formatRelativeDate($0) } ?? ""
+            let dueStr = r.dueDate.map(monthDay) ?? ""
             lines.append("- \(r.title)\(priorityStr) in \(r.listName), due \(dueStr)")
         }
         if overdue.count > maxOverdue {
@@ -634,12 +606,9 @@ private func formatOverview(
             return calendar.startOfDay(for: due)
         }
 
-        let sortedDates = grouped.keys.sorted()
-        let upcomingDateFormatter = DateFormatter()
-        upcomingDateFormatter.dateFormat = "MMM d"
-        for date in sortedDates {
+        for date in grouped.keys.sorted() {
             let count = grouped[date]?.count ?? 0
-            lines.append("- \(upcomingDateFormatter.string(from: date)): \(count) reminder\(count == 1 ? "" : "s")")
+            lines.append("- \(monthDay(date)): \(count) reminder\(count == 1 ? "" : "s")")
         }
     }
 
@@ -664,7 +633,11 @@ private func formatPriorityLabel(_ priority: ReminderPriority) -> String {
     }
 }
 
-private func formatRelativeDate(_ date: Date) -> String {
+private func countByList(_ reminders: [ReminderModel]) -> [String: Int] {
+    Dictionary(grouping: reminders, by: \.listId).mapValues(\.count)
+}
+
+private func monthDay(_ date: Date) -> String {
     let formatter = DateFormatter()
     formatter.dateFormat = "MMM d"
     return formatter.string(from: date)

@@ -47,14 +47,8 @@ enum ParseError: Error, LocalizedError {
     }
 }
 
-/// Result of parsing a date string, including whether time was specified
-private struct ParsedDate {
-    let date: Date
-    let hasTime: Bool
-}
-
-/// Parse date string and detect if it includes a time component
-private func parseDateWithTimeInfo(_ string: String?, in timeZone: TimeZone? = nil) -> ParsedDate? {
+/// Parse a date string; the date-only form is all-day.
+private func parseDateWithTimeInfo(_ string: String?, in timeZone: TimeZone? = nil) -> (date: Date, isAllDay: Bool)? {
     guard let string = string else { return nil }
 
     let formatter = ISO8601DateFormatter()
@@ -62,13 +56,13 @@ private func parseDateWithTimeInfo(_ string: String?, in timeZone: TimeZone? = n
     // ISO8601 with fractional seconds - has time
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     if let date = formatter.date(from: string) {
-        return ParsedDate(date: date, hasTime: true)
+        return (date, false)
     }
 
     // ISO8601 without fractional seconds - has time
     formatter.formatOptions = [.withInternetDateTime]
     if let date = formatter.date(from: string) {
-        return ParsedDate(date: date, hasTime: true)
+        return (date, false)
     }
 
     // Fallback: local datetime (no timezone = local time) - has time
@@ -79,13 +73,13 @@ private func parseDateWithTimeInfo(_ string: String?, in timeZone: TimeZone? = n
 
     localFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
     if let date = localFormatter.date(from: string) {
-        return ParsedDate(date: date, hasTime: true)
+        return (date, false)
     }
 
     // Date-only format - no time (all-day)
     localFormatter.dateFormat = "yyyy-MM-dd"
     if let date = localFormatter.date(from: string) {
-        return ParsedDate(date: date, hasTime: false)
+        return (date, true)
     }
 
     return nil
@@ -96,7 +90,6 @@ private func parseDate(_ string: String?) -> Date? {
 }
 
 /// Parse date with time info and explicit error when format is invalid
-/// Returns (date, isAllDay) where isAllDay is true if the input was date-only format
 func requireDateWithTimeInfo(
     _ string: String?,
     in timeZone: TimeZone? = nil
@@ -105,7 +98,7 @@ func requireDateWithTimeInfo(
     guard let parsed = parseDateWithTimeInfo(string, in: timeZone) else {
         throw ParseError.invalidDateFormat(string)
     }
-    return (parsed.date, !parsed.hasTime)
+    return parsed
 }
 
 private func parsePriority(_ string: String?) -> ReminderPriority? {
@@ -181,64 +174,65 @@ func requireColor(_ string: String?) throws -> String? {
     return color
 }
 
-/// Parse alarms field from upsert item (3-state: missing=unchanged, null=remove, array=set).
-func parseAlarmsField(
-    _ itemObj: [String: Value]
-) throws -> ReminderFieldUpdate<[ReminderAlarmModel]> {
-    guard let value = itemObj["alarms"] else {
-        return .unchanged
-    }
-    if case .null = value {
-        return .clear
-    }
-    guard let array = value.arrayValue else {
-        throw ParseError.invalidAlarms("expected an array or null")
-    }
-    var alarms: [ReminderAlarmModel] = []
-    for (index, element) in array.enumerated() {
-        guard let object = element.objectValue, let kind = object["kind"]?.stringValue else {
-            throw ParseError.invalidAlarms("element \(index) must be an alarm object with a kind")
+/// Three-state field: absent leaves it unchanged, null clears it, anything else is parsed.
+private func parseField<T: Sendable>(
+    _ object: [String: Value],
+    key: String,
+    _ parse: (Value) throws -> T
+) throws -> ReminderFieldUpdate<T> {
+    guard let value = object[key] else { return .unchanged }
+    if value.isNull { return .clear }
+    return .set(try parse(value))
+}
+
+func parseAlarmsField(_ itemObj: [String: Value]) throws -> ReminderFieldUpdate<[ReminderAlarmModel]> {
+    try parseField(itemObj, key: "alarms") { value in
+        guard let array = value.arrayValue else {
+            throw ParseError.invalidAlarms("expected an array or null")
         }
-        switch kind {
-        case "relative":
-            guard let minutes = object["minutesBefore"]?.intValue, minutes >= 0 else {
-                throw ParseError.invalidAlarms("relative element \(index) needs non-negative integer minutesBefore")
-            }
-            alarms.append(.relative(minutesBefore: minutes))
-        case "absolute":
-            guard let value = object["absoluteDate"]?.stringValue,
-                let date = parseDate(value)
-            else {
-                throw ParseError.invalidAlarms("absolute element \(index) needs a valid absoluteDate")
-            }
-            alarms.append(.absolute(date))
-        case "location":
-            guard let title = object["title"]?.stringValue,
-                let latitude = object["latitude"]?.numberValue,
-                let longitude = object["longitude"]?.numberValue,
-                let radius = object["radius"]?.numberValue,
-                radius >= 0,
-                let proximityValue = object["proximity"]?.stringValue,
-                let proximity = ReminderAlarmModel.Proximity(rawValue: proximityValue),
-                proximity != .none
-            else {
-                throw ParseError.invalidAlarms(
-                    "location element \(index) needs title, coordinates, non-negative radius, and enter/leave proximity"
-                )
-            }
-            guard (-90...90).contains(latitude), (-180...180).contains(longitude) else {
-                throw ParseError.invalidAlarms("location element \(index) has invalid coordinates")
-            }
-            alarms.append(
-                .location(
-                    .init(title: title, latitude: latitude, longitude: longitude, radius: radius),
-                    proximity: proximity
-                ))
-        default:
-            throw ParseError.invalidAlarms("unknown kind '\(kind)' at element \(index)")
-        }
+        return try array.enumerated().map { index, element in try parseAlarm(element, at: index) }
     }
-    return .set(alarms)
+}
+
+private func parseAlarm(_ element: Value, at index: Int) throws -> ReminderAlarmModel {
+    guard let object = element.objectValue, let kind = object["kind"]?.stringValue else {
+        throw ParseError.invalidAlarms("element \(index) must be an alarm object with a kind")
+    }
+    switch ReminderAlarmKindInput(rawValue: kind) {
+    case .relative:
+        guard let minutes = object["minutesBefore"]?.intValue, minutes >= 0 else {
+            throw ParseError.invalidAlarms("relative element \(index) needs non-negative integer minutesBefore")
+        }
+        return .relative(minutesBefore: minutes)
+    case .absolute:
+        guard let date = parseDate(object["absoluteDate"]?.stringValue) else {
+            throw ParseError.invalidAlarms("absolute element \(index) needs a valid absoluteDate")
+        }
+        return .absolute(date)
+    case .location:
+        guard let title = object["title"]?.stringValue,
+            let latitude = object["latitude"]?.numberValue,
+            let longitude = object["longitude"]?.numberValue,
+            let radius = object["radius"]?.numberValue,
+            radius >= 0,
+            let proximityValue = object["proximity"]?.stringValue,
+            let proximity = ReminderAlarmModel.Proximity(rawValue: proximityValue),
+            proximity != .none
+        else {
+            throw ParseError.invalidAlarms(
+                "location element \(index) needs title, coordinates, non-negative radius, and enter/leave proximity"
+            )
+        }
+        guard (-90...90).contains(latitude), (-180...180).contains(longitude) else {
+            throw ParseError.invalidAlarms("location element \(index) has invalid coordinates")
+        }
+        return .location(
+            .init(title: title, latitude: latitude, longitude: longitude, radius: radius),
+            proximity: proximity
+        )
+    case nil:
+        throw ParseError.invalidAlarms("unknown kind '\(kind)' at element \(index)")
+    }
 }
 
 func parseDateField(
@@ -246,87 +240,68 @@ func parseDateField(
     key: String,
     timeZoneKey: String
 ) throws -> ReminderFieldUpdate<ReminderDateValue> {
-    guard let value = object[key] else { return .unchanged }
-    if value.isNull { return .clear }
-    // Resolve the zone first: a date-only or zone-less input is a wall-clock time that
-    // must be anchored in the caller's zone, not in the server's.
-    let timeZoneIdentifier = try parseTimeZone(object[timeZoneKey])
-    let timeZone = timeZoneIdentifier.flatMap(TimeZone.init(identifier:))
-    guard let string = value.stringValue,
-        let parsed = parseDateWithTimeInfo(string, in: timeZone)
-    else {
-        throw ParseError.invalidDateFormat(value.stringValue ?? "(non-string value)")
+    try parseField(object, key: key) { value in
+        // Resolve the zone first: a date-only or zone-less input is a wall-clock time that
+        // must be anchored in the caller's zone, not in the server's.
+        let timeZoneIdentifier = try parseTimeZone(object[timeZoneKey])
+        let timeZone = timeZoneIdentifier.flatMap(TimeZone.init(identifier:))
+        guard let parsed = parseDateWithTimeInfo(value.stringValue, in: timeZone) else {
+            throw ParseError.invalidDateFormat(value.unparsableText)
+        }
+        return ReminderDateValue(date: parsed.date, timeZoneIdentifier: timeZoneIdentifier, isAllDay: parsed.isAllDay)
     }
-    return .set(
-        ReminderDateValue(
-            date: parsed.date,
-            timeZoneIdentifier: timeZoneIdentifier,
-            isAllDay: !parsed.hasTime
-        ))
 }
 
-func parseStringField(
-    _ object: [String: Value],
-    key: String
-) throws -> ReminderFieldUpdate<String> {
-    guard let value = object[key] else { return .unchanged }
-    if value.isNull { return .clear }
-    guard let string = value.stringValue else {
-        throw ParseError.invalidStringValue(key)
+func parseStringField(_ object: [String: Value], key: String) throws -> ReminderFieldUpdate<String> {
+    try parseField(object, key: key) { value in
+        guard let string = value.stringValue else {
+            throw ParseError.invalidStringValue(key)
+        }
+        return string
     }
-    return .set(string)
 }
 
+/// Create path: absent and null both mean no URL.
 func parseURL(_ value: Value?) throws -> String? {
-    guard let value else { return nil }
-    if value.isNull { return nil }
+    guard let value, !value.isNull else { return nil }
+    return try validatedURLString(value)
+}
+
+func parseURLField(_ object: [String: Value]) throws -> ReminderFieldUpdate<String> {
+    try parseField(object, key: "url", validatedURLString)
+}
+
+private func validatedURLString(_ value: Value) throws -> String {
     guard let string = value.stringValue,
         let url = URL(string: string),
         url.scheme?.isEmpty == false
     else {
-        throw ParseError.invalidURL(value.stringValue ?? "(non-string value)")
+        throw ParseError.invalidURL(value.unparsableText)
     }
     return string
 }
 
-func parseURLField(_ object: [String: Value]) throws -> ReminderFieldUpdate<String> {
-    guard let value = object["url"] else { return .unchanged }
-    if value.isNull { return .clear }
-    guard let url = try parseURL(value) else { return .unchanged }
-    return .set(url)
-}
-
 func parseTimeZone(_ value: Value?) throws -> String? {
-    guard let value else { return nil }
-    if value.isNull { return nil }
+    guard let value, !value.isNull else { return nil }
     guard let identifier = value.stringValue, TimeZone(identifier: identifier) != nil else {
-        throw ParseError.invalidTimeZone(value.stringValue ?? "(non-string value)")
+        throw ParseError.invalidTimeZone(value.unparsableText)
     }
     return identifier
 }
 
-/// Parse recurrence field from upsert item
 func parseRecurrenceField(_ itemObj: [String: Value]) throws -> ReminderFieldUpdate<String> {
-    guard let value = itemObj["recurrence"] else {
-        return .unchanged
+    try parseField(itemObj, key: "recurrence") { value in
+        guard let rrule = value.stringValue else {
+            throw ParseError.invalidRRule(value.unparsableText, "Recurrence must be an RRULE string")
+        }
+        // Validate by parsing (RRuleParser will throw if invalid)
+        do {
+            _ = try RRuleParser.parse(rrule)
+        } catch {
+            throw ParseError.invalidRRule(rrule, error.localizedDescription)
+        }
+        return rrule
     }
-
-    if case .null = value {
-        return .clear
-    }
-
-    guard let rrule = value.stringValue else {
-        throw ParseError.invalidRRule("(non-string value)", "Recurrence must be an RRULE string")
-    }
-
-    // Validate by parsing (RRuleParser will throw if invalid)
-    do {
-        _ = try RRuleParser.parse(rrule)
-    } catch {
-        throw ParseError.invalidRRule(rrule, error.localizedDescription)
-    }
-
-    return .set(rrule)
 }
 
 private extension Value {
@@ -336,5 +311,10 @@ private extension Value {
         case .double(let value): value
         default: nil
         }
+    }
+
+    /// The string itself, or a placeholder for error messages when the value is not a string.
+    var unparsableText: String {
+        stringValue ?? "(non-string value)"
     }
 }
