@@ -108,7 +108,7 @@ already-authorized Reminders tool surface.
 | `query_reminders` | Query reminders by list, filter (all/overdue/today/upcoming), and regex search; supplied constraints are combined and results are paginated |
 | `write_reminders` | Create, update, or delete reminders. Uses `upsert` array (no id = create, with id = update) and `delete` array for IDs to remove |
 | `get_reminder_lists` | Get all reminder lists |
-| `manage_reminder_list` | Create or delete reminder lists (action='create' with title, or action='delete' with id) |
+| `manage_reminder_list` | Create or delete reminder lists (action='create' with title and optional hex color, or action='delete' with id) |
 | `overview` | Get a concise dashboard: date/timezone, counts, lists, overdue/today/upcoming reminders |
 
 ## Tool Examples
@@ -147,6 +147,10 @@ already-authorized Reminders tool surface.
 
 Query responses include `count`, `totalCount`, `offset`, and `hasMore` so clients can
 continue without placing the entire reminders database in one model context.
+
+`filter` defaults to `all`, and `days` sets the `upcoming` window: 1 through 3650,
+default 7. Completed reminders are left out unless `includeDone` is `true`. `limit`
+takes 1 through 100 and defaults to 25; `offset` defaults to 0.
 
 ### Write Reminders (Create/Update/Delete)
 
@@ -196,17 +200,27 @@ continue without placing the entire reminders database in one model context.
 }
 ```
 
+One call carries at most 100 operations, counting `upsert` and `delete` together.
+
 ### Supported reminder fields
 
 The write and query tools preserve titles, notes, completion state, priority, list,
-due date, start date, independent IANA time zones, all-day flags, location text, URL,
+due date, start date, IANA time zones, all-day flags, location text, URL,
 RFC 5545 recurrence, and relative, absolute, or geofence alarms.
+
+Dates are ISO 8601: with an offset (`2026-01-06T10:00:00-06:00`), as wall-clock time
+(`2026-01-06T10:00:00`), or date-only for an all-day reminder (`2026-01-06`).
+`dueTimeZone` and `startTimeZone` anchor the wall-clock and date-only forms; without
+one, the date floats in the Mac's local time. EventKit keeps one time zone and one
+all-day form per reminder, so when the due and start dates disagree, the start date's
+apply to both.
 
 Updates use three-state patch semantics for nullable fields: omit a property to leave
 it unchanged, send JSON `null` to clear it, or send a value to replace it. This applies
 to `notes`, `dueDate`, `location`, `url`, `startDate`, `recurrence`, and `alarms`.
 URLs must include a scheme, and time zones must be valid IANA identifiers such as
-`America/Chicago`.
+`America/Chicago`. Integer parameters (`days`, `limit`, `offset`, `minutesBefore`) take
+JSON integers, so `15.5` is rejected; coordinates and `radius` take any number.
 
 Alarms use one of these tagged object shapes:
 
@@ -226,8 +240,8 @@ Alarms use one of these tagged object shapes:
 ### Manage Lists
 
 ```json
-// Create a list
-{ "name": "manage_reminder_list", "arguments": { "action": "create", "title": "Work" } }
+// Create a list, optionally with a hex color
+{ "name": "manage_reminder_list", "arguments": { "action": "create", "title": "Work", "color": "#FF5733" } }
 
 // Delete a list
 { "name": "manage_reminder_list", "arguments": { "action": "delete", "id": "list-id" } }
@@ -241,6 +255,7 @@ Alarms use one of these tagged object shapes:
 | `--log-to-stderr` | Send logs to stderr (default: suppressed for MCP) |
 | `--read-only` | Disable all mutating operations |
 | `--allowed-lists <ids>` | Comma-separated list IDs to restrict access to |
+| `--version` | Print the version and exit |
 
 ## Development
 

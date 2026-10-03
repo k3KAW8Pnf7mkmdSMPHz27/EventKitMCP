@@ -1,77 +1,14 @@
-# Xcode
-.DS_Store
-*/build/*
-*.pbxuser
-!default.pbxuser
-*.mode1v3
-!default.mode1v3
-*.mode2v3
-!default.mode2v3
-*.perspectivev3
-!default.perspectivev3
-xcuserdata
-*.xccheckout
-profile
-*.moved-aside
-DerivedData
-*.hmap
-*.ipa
-*.xcuserstate
-*.xcworkspace
-!default.xcworkspace
-
-# Swift Package Manager
+# SwiftPM and Xcode
 .build/
 .swiftpm/
-Packages/
-*.xcodeproj
+DerivedData/
+xcuserdata/
 
-# CocoaPods
-Pods/
-
-# Carthage
-Carthage/Build
-
-# Fastlane
-fastlane/report.xml
-fastlane/Preview.html
-fastlane/screenshots
-fastlane/test_output
-
-# Code Injection
-iOSInjectionProject/
-
-# macOS
-.AppleDouble
-.LSOverride
-._*
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-
-# IDE
-.idea/
-*.swp
-*.swo
-*~
-.vscode/
-
-# Local toolchain selection
+# Tooling
+node_modules/
 mise.local.toml
-
-# Local agent workspace data
 .air/
-
-# Build outputs
-bin/
-dist/
-
-# Claude Code local settings (never publish - can contain machine paths)
 .claude/
 
-# Release tooling (semantic-release), installed by CI from package-lock.json
-node_modules/
+# macOS
+.DS_Store
