@@ -36,32 +36,12 @@ private extension ReminderAlarmModel {
     var output: AlarmOutput {
         switch self {
         case .relative(let minutesBefore):
-            AlarmOutput(
-                kind: kind.rawValue,
-                minutesBefore: minutesBefore,
-                absoluteDate: nil,
-                proximity: nil,
-                title: nil,
-                latitude: nil,
-                longitude: nil,
-                radius: nil
-            )
+            AlarmOutput(kind: kind.rawValue, minutesBefore: minutesBefore)
         case .absolute(let date):
-            AlarmOutput(
-                kind: kind.rawValue,
-                minutesBefore: nil,
-                absoluteDate: formatISO8601(date),
-                proximity: nil,
-                title: nil,
-                latitude: nil,
-                longitude: nil,
-                radius: nil
-            )
+            AlarmOutput(kind: kind.rawValue, absoluteDate: formatISO8601(date))
         case .location(let location, let proximity):
             AlarmOutput(
                 kind: kind.rawValue,
-                minutesBefore: nil,
-                absoluteDate: nil,
                 proximity: proximity.rawValue,
                 title: location.title,
                 latitude: location.latitude,
