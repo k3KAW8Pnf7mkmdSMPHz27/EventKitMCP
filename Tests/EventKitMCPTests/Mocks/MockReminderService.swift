@@ -10,6 +10,7 @@ final class MockReminderService: ReminderServiceProtocol {
     // Track method calls for verification
     var getRemindersCalled = false
     var lastGetRemindersIncludeDone: Bool?
+    var createRequests: [CreateReminderRequest] = []
     var updateRequests: [UpdateReminderRequest] = []
 
     func requestAccess() async throws -> Bool {
@@ -60,11 +61,12 @@ final class MockReminderService: ReminderServiceProtocol {
     }
 
     func createReminder(_ request: CreateReminderRequest) async throws -> ReminderModel {
+        createRequests.append(request)
         let reminder = ReminderModel(
             id: UUID().uuidString,
             title: request.title,
             notes: request.notes,
-            done: false,
+            done: request.done,
             priority: request.priority ?? .none,
             dueDate: request.dueDate,
             dueTimeZone: request.dueTimeZone,

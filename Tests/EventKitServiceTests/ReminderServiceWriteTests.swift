@@ -133,6 +133,14 @@ struct ReminderServiceWriteTests {
         #expect(flattened.hour == nil)
     }
 
+    @Test("Create can start a reminder completed")
+    func createCompleted() async throws {
+        let f = Self.fixture()
+        let model = try await f.service.createReminder(CreateReminderRequest(title: "Done", done: true))
+        #expect(model.done)
+        #expect(try #require(f.store.saved.last).isCompleted)
+    }
+
     @Test("Create without a list uses the default list")
     func createUsesDefaultList() async throws {
         let f = Self.fixture()

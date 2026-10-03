@@ -56,15 +56,24 @@ struct ToolInputParsingTests {
             ("2026-01-06", nil, .current, [2026, 1, 6, 0, 0], true)
         ]
         for testCase in cases {
-            let parsed = try #require(try requireDateWithTimeInfo(testCase.input, in: testCase.zone))
+            let parsed = try #require(try dueDate(testCase.input, zone: testCase.zone))
             #expect(components(parsed.date, in: testCase.readIn) == testCase.expected, "\(testCase.input)")
             #expect(parsed.isAllDay == testCase.isAllDay, "\(testCase.input)")
+            #expect(parsed.timeZoneIdentifier == testCase.zone?.identifier, "\(testCase.input)")
         }
 
-        #expect(try requireDateWithTimeInfo(nil) == nil)
         for bad in ["06/01/2026", "2026-13-01", "tomorrow", ""] {
-            expectParseError("Invalid date format: '\(bad)'. Use ISO8601") { _ = try requireDateWithTimeInfo(bad) }
+            expectParseError("Invalid date format: '\(bad)'. Use ISO8601") { _ = try dueDate(bad, zone: nil) }
         }
+    }
+
+    private func dueDate(_ input: String, zone: TimeZone?) throws -> ReminderDateValue? {
+        var object: [String: Value] = ["dueDate": .string(input)]
+        if let zone { object["dueTimeZone"] = .string(zone.identifier) }
+        guard case .set(let value) = try parseDateField(object, key: "dueDate", timeZoneKey: "dueTimeZone") else {
+            return nil
+        }
+        return value
     }
 
     @Test("Three-state fields distinguish absent, null, a value and a wrong type")
@@ -139,7 +148,7 @@ struct ToolInputParsingTests {
 
     @Test("Alarms parse every kind and reject each malformed shape with its own message")
     func alarms() throws {
-        let absoluteDate = try #require(try requireDateWithTimeInfo("2026-01-06T10:00:00Z")).date
+        let absoluteDate = Date(timeIntervalSince1970: 1_767_693_600)  // 2026-01-06T10:00:00Z
         #expect(
             try parseAlarmsField([
                 "alarms": .array([
@@ -197,6 +206,23 @@ struct ToolInputParsingTests {
         ]
         for (value, message) in invalid {
             expectParseError("Invalid alarms: \(message)") { _ = try parseAlarmsField(["alarms": value]) }
+        }
+    }
+
+    @Test("Wall-clock absolute alarms anchor to the start zone, else the due zone")
+    func absoluteAlarmZones() throws {
+        let tokyoMidnight = try #require(calendar(in: tokyo).date(from: DateComponents(year: 2026, month: 1, day: 6)))
+        let alarm: Value = .array([.object(["kind": .string("absolute"), "absoluteDate": .string("2026-01-06")])])
+        let cases: [[String: Value]] = [
+            ["alarms": alarm, "startTimeZone": .string("Asia/Tokyo")],
+            ["alarms": alarm, "dueTimeZone": .string("Asia/Tokyo")],
+            ["alarms": alarm, "startTimeZone": .string("Asia/Tokyo"), "dueTimeZone": .string("Europe/Paris")]
+        ]
+        for object in cases {
+            #expect(try parseAlarmsField(object) == .set([.absolute(tokyoMidnight)]), "\(object.keys.sorted())")
+        }
+        expectParseError("Unknown time zone: 'Mars/Base'") {
+            _ = try parseAlarmsField(["alarms": alarm, "startTimeZone": .string("Mars/Base")])
         }
     }
 

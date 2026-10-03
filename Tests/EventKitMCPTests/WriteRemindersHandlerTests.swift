@@ -8,7 +8,6 @@ import MCP
 @MainActor
 @Suite("Write Reminders Handler Tests")
 struct WriteRemindersHandlerTests {
-
     @Test("Omitted fields are sent as unchanged")
     func omittedFieldsAreSentAsUnchanged() async throws {
         let service = MockReminderService()
@@ -72,59 +71,6 @@ struct WriteRemindersHandlerTests {
         result.expectError(containing: "At most 100")
     }
 
-    @Test("A date-only due date anchors to the supplied time zone, not the server's")
-    func dateOnlyAnchorsToSuppliedTimeZone() async throws {
-        let service = MockReminderService()
-
-        let result = await writeReminders(
-            upsert: [
-                [
-                    "title": .string("All-day in Tokyo"),
-                    "dueDate": .string("2026-03-15"),
-                    "dueTimeZone": .string("Asia/Tokyo")
-                ]
-            ], service: service)
-
-        result.expectSuccess()
-        let reminder = try #require(service.mockReminders.first)
-        #expect(reminder.dueTimeZone == "Asia/Tokyo")
-
-        // The date-only branch used to hardcode TimeZone.current, so the instant landed
-        // on local midnight. Anchored correctly it is midnight in Tokyo.
-        var tokyoCalendar = Calendar(identifier: .gregorian)
-        tokyoCalendar.timeZone = try #require(TimeZone(identifier: "Asia/Tokyo"))
-        let due = try #require(reminder.dueDate)
-        let parts = tokyoCalendar.dateComponents([.year, .month, .day, .hour], from: due)
-
-        #expect(parts.year == 2026)
-        #expect(parts.month == 3)
-        #expect(parts.day == 15)
-        #expect(parts.hour == 0)
-    }
-
-    @Test("A date-only due date without a time zone still uses the server zone")
-    func dateOnlyWithoutTimeZoneUsesLocal() async throws {
-        let service = MockReminderService()
-
-        let result = await writeReminders(
-            upsert: [
-                [
-                    "title": .string("All-day local"),
-                    "dueDate": .string("2026-03-15")
-                ]
-            ], service: service)
-
-        result.expectSuccess()
-        let reminder = try #require(service.mockReminders.first)
-        let due = try #require(reminder.dueDate)
-        let parts = Calendar.current.dateComponents([.year, .month, .day, .hour], from: due)
-
-        #expect(parts.year == 2026)
-        #expect(parts.month == 3)
-        #expect(parts.day == 15)
-        #expect(parts.hour == 0)
-    }
-
     @Test("Explicit null clears every nullable reminder field")
     func explicitNullClearsFields() async throws {
         let service = MockReminderService()
@@ -155,51 +101,6 @@ struct WriteRemindersHandlerTests {
         #expect(request.alarms == .clear)
     }
 
-    // MARK: - Create Tests (upsert without id)
-
-    @Test("Create single reminder via upsert")
-    func testCreateSingleReminder() async throws {
-        let result = await writeReminders(upsert: [
-            [
-                "title": .string("Buy groceries"),
-                "notes": .string("Milk, eggs, bread"),
-                "priority": .string("medium")
-            ]
-        ])
-
-        result.expectText(containing: "Created 1", "Buy groceries", "Milk, eggs, bread")
-    }
-
-    @Test("Create multiple reminders via upsert")
-    func testCreateMultipleReminders() async throws {
-        let result = await writeReminders(upsert: [
-            ["title": .string("Task 1")],
-            ["title": .string("Task 2")],
-            ["title": .string("Task 3")]
-        ])
-
-        result.expectText(containing: "Created 3")
-    }
-
-    @Test("Create with missing title reports failure")
-    func testCreateMissingTitle() async throws {
-        let result = await writeReminders(upsert: [["notes": .string("No title here")]])
-
-        result.expectText(containing: "Failed", "upsert[0]", "Missing title")
-    }
-
-    @Test("Create reminder with URL")
-    func testCreateWithURL() async throws {
-        let result = await writeReminders(upsert: [
-            [
-                "title": .string("Check docs"),
-                "url": .string("https://example.com/docs")
-            ]
-        ])
-
-        result.expectText(containing: "Created 1", "URL: https://example.com/docs")
-    }
-
     @Test("Update reminder with URL")
     func testUpdateWithURL() async throws {
         let service = MockReminderService()
@@ -219,18 +120,6 @@ struct WriteRemindersHandlerTests {
         #expect(service.updateRequests.last?.url == .set("https://example.com/updated"))
     }
 
-    @Test("Create reminder with location")
-    func testCreateWithLocation() async throws {
-        let result = await writeReminders(upsert: [
-            [
-                "title": .string("Meeting"),
-                "location": .string("Conference Room B")
-            ]
-        ])
-
-        result.expectText(containing: "Created 1", "Location: Conference Room B")
-    }
-
     @Test("Update reminder with location")
     func testUpdateWithLocation() async throws {
         let service = MockReminderService()
@@ -248,28 +137,6 @@ struct WriteRemindersHandlerTests {
 
         result.expectText(containing: "Updated 1")
         #expect(service.updateRequests.last?.location == .set("Room 42"))
-    }
-
-    @Test("Create reminder with alarms")
-    func testCreateWithAlarms() async throws {
-        let result = await writeReminders(upsert: [
-            [
-                "title": .string("Meeting"),
-                "dueDate": .string("2026-06-01T10:00:00"),
-                "startDate": .string("2026-06-01T10:00:00"),
-                "alarms": .array(
-                    [0, 15, 60].map { minutes in
-                        .object([
-                            "kind": .string("relative"),
-                            "minutesBefore": .int(minutes)
-                        ])
-                    })
-            ]
-        ])
-
-        result.expectText(
-            containing: "Created 1", "Alarms:", "at start", "15 min before start", "60 min before start"
-        )
     }
 
     @Test("Update reminder alarms")
@@ -318,31 +185,6 @@ struct WriteRemindersHandlerTests {
 
         result.expectText(containing: "Updated 1")
         #expect(service.updateRequests.last?.alarms == .clear)
-    }
-
-    @Test("Create reminder with start date")
-    func testCreateWithStartDate() async throws {
-        let result = await writeReminders(upsert: [
-            [
-                "title": .string("Project kickoff"),
-                "startDate": .string("2026-06-01T09:00:00"),
-                "dueDate": .string("2026-06-15T17:00:00")
-            ]
-        ])
-
-        result.expectText(containing: "Created 1", "Start:", "Due:")
-    }
-
-    @Test("Create reminder with all-day start date")
-    func testCreateWithAllDayStartDate() async throws {
-        let result = await writeReminders(upsert: [
-            [
-                "title": .string("Vacation"),
-                "startDate": .string("2026-07-01")
-            ]
-        ])
-
-        result.expectText(containing: "Created 1", "Start:")
     }
 
     @Test("Remove start date with null")

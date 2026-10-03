@@ -295,48 +295,25 @@ private func handleWriteReminders(
             }
 
             do {
-                // Parse recurrence; null is equivalent to omission during creation.
-                let recurrenceRule = try parseRecurrenceField(itemObj).setValue
-
-                // Resolve zones first so date-only inputs anchor to the caller's zone.
-                let dueTimeZoneId = try parseTimeZone(itemObj["dueTimeZone"])
-                let startTimeZoneId = try parseTimeZone(itemObj["startTimeZone"])
-
-                // Parse due date with time info to determine isAllDay
-                let dateInfo = try requireDateWithTimeInfo(
-                    itemObj["dueDate"]?.stringValue,
-                    in: dueTimeZoneId.flatMap(TimeZone.init(identifier:))
-                )
-
-                // Parse start date
-                let startDateInfo = try requireDateWithTimeInfo(
-                    itemObj["startDate"]?.stringValue,
-                    in: startTimeZoneId.flatMap(TimeZone.init(identifier:))
-                )
-
-                // Parse alarms
-                let createAlarms = try parseAlarmsField(itemObj).setValue
-                if createAlarms?.contains(where: { $0.kind == .relative }) == true,
-                    startDateInfo == nil
-                {
-                    throw ParseError.invalidAlarms("relative alarms require startDate")
-                }
-
+                // The update path's parsers, with null meaning the same as omitted.
+                let dueDate = try parseDateField(itemObj, key: "dueDate", timeZoneKey: "dueTimeZone").setValue
+                let startDate = try parseDateField(itemObj, key: "startDate", timeZoneKey: "startTimeZone").setValue
                 let request = CreateReminderRequest(
                     title: title,
-                    notes: itemObj["notes"]?.stringValue,
+                    notes: try parseStringField(itemObj, key: "notes").setValue,
                     listId: itemObj["listId"]?.stringValue,
-                    dueDate: dateInfo?.date,
-                    dueTimeZone: dueTimeZoneId,
-                    isAllDay: dateInfo?.isAllDay ?? false,  // false if no date
+                    dueDate: dueDate?.date,
+                    dueTimeZone: dueDate?.timeZoneIdentifier,
+                    isAllDay: dueDate?.isAllDay ?? false,
                     priority: try requirePriority(itemObj["priority"]?.stringValue),
-                    recurrenceRule: recurrenceRule,
-                    location: itemObj["location"]?.stringValue,
-                    url: try parseURL(itemObj["url"]),
-                    startDate: startDateInfo?.date,
-                    startTimeZone: startTimeZoneId,
-                    isStartAllDay: startDateInfo?.isAllDay ?? false,
-                    alarms: createAlarms
+                    recurrenceRule: try parseRecurrenceField(itemObj).setValue,
+                    location: try parseStringField(itemObj, key: "location").setValue,
+                    url: try parseURLField(itemObj).setValue,
+                    startDate: startDate?.date,
+                    startTimeZone: startDate?.timeZoneIdentifier,
+                    isStartAllDay: startDate?.isAllDay ?? false,
+                    alarms: try parseAlarmsField(itemObj).setValue,
+                    done: itemObj["done"]?.boolValue ?? false
                 )
                 let reminder = try await reminderService.createReminder(request)
                 createdReminders.append(reminder)

@@ -127,6 +127,7 @@ public struct CreateReminderRequest: Sendable {
     public let startTimeZone: String?
     public let isStartAllDay: Bool
     public let alarms: [ReminderAlarmModel]?
+    public let done: Bool
 
     public init(
         title: String,
@@ -142,7 +143,8 @@ public struct CreateReminderRequest: Sendable {
         startDate: Date? = nil,
         startTimeZone: String? = nil,
         isStartAllDay: Bool = false,
-        alarms: [ReminderAlarmModel]? = nil
+        alarms: [ReminderAlarmModel]? = nil,
+        done: Bool = false
     ) {
         self.title = title
         self.notes = notes
@@ -158,6 +160,7 @@ public struct CreateReminderRequest: Sendable {
         self.startTimeZone = startTimeZone
         self.isStartAllDay = isStartAllDay
         self.alarms = alarms
+        self.done = done
     }
 }
 

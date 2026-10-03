@@ -85,22 +85,6 @@ private func parseDateWithTimeInfo(_ string: String?, in timeZone: TimeZone? = n
     return nil
 }
 
-private func parseDate(_ string: String?) -> Date? {
-    parseDateWithTimeInfo(string)?.date
-}
-
-/// Parse date with time info and explicit error when format is invalid
-func requireDateWithTimeInfo(
-    _ string: String?,
-    in timeZone: TimeZone? = nil
-) throws -> (date: Date, isAllDay: Bool)? {
-    guard let string = string else { return nil }
-    guard let parsed = parseDateWithTimeInfo(string, in: timeZone) else {
-        throw ParseError.invalidDateFormat(string)
-    }
-    return parsed
-}
-
 private func parsePriority(_ string: String?) -> ReminderPriority? {
     guard let input = string.flatMap(ReminderPriorityInput.init(rawValue:)) else { return nil }
     switch input {
@@ -190,11 +174,15 @@ func parseAlarmsField(_ itemObj: [String: Value]) throws -> ReminderFieldUpdate<
         guard let array = value.arrayValue else {
             throw ParseError.invalidAlarms("expected an array or null")
         }
-        return try array.enumerated().map { index, element in try parseAlarm(element, at: index) }
+        // EventKit keeps one zone per reminder and the start date's wins, so wall-clock
+        // absolute alarms anchor to the start zone, else the due zone.
+        let zone = try (parseTimeZone(itemObj["startTimeZone"]) ?? parseTimeZone(itemObj["dueTimeZone"]))
+            .flatMap(TimeZone.init(identifier:))
+        return try array.enumerated().map { index, element in try parseAlarm(element, at: index, in: zone) }
     }
 }
 
-private func parseAlarm(_ element: Value, at index: Int) throws -> ReminderAlarmModel {
+private func parseAlarm(_ element: Value, at index: Int, in timeZone: TimeZone?) throws -> ReminderAlarmModel {
     guard let object = element.objectValue, let kind = object["kind"]?.stringValue else {
         throw ParseError.invalidAlarms("element \(index) must be an alarm object with a kind")
     }
@@ -205,7 +193,7 @@ private func parseAlarm(_ element: Value, at index: Int) throws -> ReminderAlarm
         }
         return .relative(minutesBefore: minutes)
     case .absolute:
-        guard let date = parseDate(object["absoluteDate"]?.stringValue) else {
+        guard let date = parseDateWithTimeInfo(object["absoluteDate"]?.stringValue, in: timeZone)?.date else {
             throw ParseError.invalidAlarms("absolute element \(index) needs a valid absoluteDate")
         }
         return .absolute(date)
@@ -259,12 +247,6 @@ func parseStringField(_ object: [String: Value], key: String) throws -> Reminder
         }
         return string
     }
-}
-
-/// Create path: absent and null both mean no URL.
-func parseURL(_ value: Value?) throws -> String? {
-    guard let value, !value.isNull else { return nil }
-    return try validatedURLString(value)
 }
 
 func parseURLField(_ object: [String: Value]) throws -> ReminderFieldUpdate<String> {

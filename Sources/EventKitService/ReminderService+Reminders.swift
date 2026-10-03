@@ -40,6 +40,9 @@ extension ReminderService {
         let reminder = EKReminder(eventStore: eventStore)
         reminder.title = request.title
         reminder.notes = request.notes
+        if request.done {
+            reminder.isCompleted = true
+        }
 
         // Set the calendar (list)
         if let listId = request.listId {
