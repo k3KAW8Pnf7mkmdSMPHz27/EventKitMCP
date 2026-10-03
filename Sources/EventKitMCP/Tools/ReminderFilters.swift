@@ -3,7 +3,7 @@ import Foundation
 
 enum ReminderFilters {
     /// Filter to reminders that are overdue (due date before start of today)
-    /// Sorted by priority (high first), then by due date (most overdue first)
+    /// Sorted by priority (high first), then by due date (most overdue first); query_reminders re-sorts with `ordered`.
     static func overdue(_ reminders: [ReminderModel], before date: Date = Date()) -> [ReminderModel] {
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: date)

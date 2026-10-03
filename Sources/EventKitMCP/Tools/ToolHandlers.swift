@@ -51,7 +51,8 @@ public func handleToolCall(
     arguments: [String: Value]?,
     reminderService: ReminderServiceProtocol,
     logger: Logger,
-    readOnly: Bool = false
+    readOnly: Bool = false,
+    now: Date = Date()
 ) async -> CallTool.Result {
     // Block mutating operations in read-only mode
     if readOnly && ToolRegistry.mutatingTools.contains(name) {
@@ -62,7 +63,7 @@ public func handleToolCall(
         switch name {
         // Unified query tool
         case "query_reminders":
-            return try await handleQueryReminders(arguments, reminderService: reminderService)
+            return try await handleQueryReminders(arguments, reminderService: reminderService, now: now)
 
         // Write reminders (unified create/update/delete)
         case "write_reminders":
@@ -76,7 +77,7 @@ public func handleToolCall(
 
         // Dashboard
         case "overview":
-            return try await handleGetOverview(reminderService: reminderService)
+            return try await handleGetOverview(reminderService: reminderService, now: now)
 
         default:
             return .failure("Unknown tool: \(name)")
@@ -96,7 +97,8 @@ public func handleToolCall(
 
 private func handleQueryReminders(
     _ arguments: [String: Value]?,
-    reminderService: ReminderServiceProtocol
+    reminderService: ReminderServiceProtocol,
+    now: Date
 ) async throws -> CallTool.Result {
     let search = arguments?["search"]?.stringValue
     let includeDone = arguments?["includeDone"]?.boolValue ?? false
@@ -111,7 +113,6 @@ private func handleQueryReminders(
         includeDone: includeDone
     )
 
-    let now = Date()
     let timeFilteredReminders: [ReminderModel]
 
     switch filter {
@@ -472,12 +473,11 @@ private extension ReminderFieldUpdate {
 // MARK: - Overview Handler
 
 private func handleGetOverview(
-    reminderService: ReminderServiceProtocol
+    reminderService: ReminderServiceProtocol,
+    now: Date
 ) async throws -> CallTool.Result {
     let lists = try await reminderService.getLists()
     let reminders = try await reminderService.getReminders(listId: nil, includeDone: false)
-
-    let now = Date()
 
     // Categorize reminders using shared filters
     let overdue = ReminderFilters.overdue(reminders, before: now)
