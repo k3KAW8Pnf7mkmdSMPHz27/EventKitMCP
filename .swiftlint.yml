@@ -1,0 +1,19 @@
+# Ceilings sit at today's maxima; a PR that shrinks a maximum lowers its ceiling.
+included: [Sources, Tests]
+only_rules:
+  - file_length
+  - type_body_length
+  - function_body_length
+  - cyclomatic_complexity
+file_length:
+  warning: 1323
+  error: 1323
+type_body_length:
+  warning: 588
+  error: 588
+function_body_length:
+  warning: 119
+  error: 119
+cyclomatic_complexity:
+  warning: 31
+  error: 31

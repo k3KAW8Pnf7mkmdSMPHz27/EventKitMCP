@@ -143,7 +143,8 @@ struct OverviewHandlerTests {
         service.mockLists = [TestFixtures.workList]
         service.mockReminders = [
             TestFixtures.reminder(title: "Overdue High", priority: .high, dueDate: TestFixtures.yesterday),
-            TestFixtures.reminder(id: "r2", title: "Overdue Medium", priority: .medium, dueDate: TestFixtures.yesterday),
+            TestFixtures.reminder(
+                id: "r2", title: "Overdue Medium", priority: .medium, dueDate: TestFixtures.yesterday),
             TestFixtures.reminder(id: "r3", title: "Normal Task")
         ]
 

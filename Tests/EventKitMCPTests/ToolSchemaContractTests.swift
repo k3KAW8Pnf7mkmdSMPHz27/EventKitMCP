@@ -12,24 +12,26 @@ struct ToolSchemaContractTests {
     func allSuccessfulResultsValidate() async throws {
         let service = MockReminderService()
         service.mockLists = [TestFixtures.workList]
-        service.mockReminders = [ReminderModel(
-            id: "contract-reminder",
-            title: "Contract reminder",
-            dueDate: TestFixtures.todayNoon,
-            dueTimeZone: "America/Chicago",
-            listId: TestFixtures.workList.id,
-            listName: TestFixtures.workList.title,
-            startDate: TestFixtures.todayNoon,
-            startTimeZone: "America/Chicago",
-            alarms: [
-                .relative(minutesBefore: 15),
-                .absolute(TestFixtures.todayNoon),
-                .location(
-                    .init(title: "Office", latitude: 41.8781, longitude: -87.6298, radius: 100),
-                    proximity: .enter
-                )
-            ]
-        )]
+        service.mockReminders = [
+            ReminderModel(
+                id: "contract-reminder",
+                title: "Contract reminder",
+                dueDate: TestFixtures.todayNoon,
+                dueTimeZone: "America/Chicago",
+                listId: TestFixtures.workList.id,
+                listName: TestFixtures.workList.title,
+                startDate: TestFixtures.todayNoon,
+                startTimeZone: "America/Chicago",
+                alarms: [
+                    .relative(minutesBefore: 15),
+                    .absolute(TestFixtures.todayNoon),
+                    .location(
+                        .init(title: "Office", latitude: 41.8781, longitude: -87.6298, radius: 100),
+                        proximity: .enter
+                    )
+                ]
+            )
+        ]
 
         let tools = ToolRegistry.allTools()
         #expect(tools.count == Self.calls.count)
@@ -65,9 +67,10 @@ struct ToolSchemaContractTests {
 
     @Test("Read-only registry exposes only query, lists, and overview")
     func readOnlyTools() {
-        #expect(Set(ToolRegistry.allTools(readOnly: true).map(\.name)) == [
-            "query_reminders", "get_reminder_lists", "overview"
-        ])
+        #expect(
+            Set(ToolRegistry.allTools(readOnly: true).map(\.name)) == [
+                "query_reminders", "get_reminder_lists", "overview"
+            ])
     }
 
     @Test("Every tool declares a mutation stance, and the read-only gate matches it")
@@ -108,11 +111,13 @@ struct ToolSchemaContractTests {
         guard actual != expected else { return }
         let actualLines = actual.split(separator: "\n", omittingEmptySubsequences: false)
         let expectedLines = expected.split(separator: "\n", omittingEmptySubsequences: false)
-        let line = zip(actualLines, expectedLines).enumerated().first { $1.0 != $1.1 }?.offset
+        let line =
+            zip(actualLines, expectedLines).enumerated().first { $1.0 != $1.1 }?.offset
             ?? min(actualLines.count, expectedLines.count)
         let was = line < expectedLines.count ? String(expectedLines[line]) : "<end of file>"
         let now = line < actualLines.count ? String(actualLines[line]) : "<end of file>"
-        Issue.record("""
+        Issue.record(
+            """
             Tool contract changed at tool-contract.json:\(line + 1)
               snapshot: \(was)
               current:  \(now)
@@ -127,53 +132,77 @@ struct ToolSchemaContractTests {
         let write = try #require(tools.first { $0.name == "write_reminders" })
         let manage = try #require(tools.first { $0.name == "manage_reminder_list" })
 
-        #expect(try validates(.object([
-            "filter": .string("upcoming"),
-            "days": .int(14),
-            "limit": .int(25),
-            "offset": .int(0),
-            "search": .string("release|follow-up")
-        ]), against: query.inputSchema))
-        #expect(try validates(.object([
-            "upsert": .array([.object([
-                "title": .string("Call the office"),
-                "startDate": .string("2026-09-04T14:00:00-05:00"),
-                "alarms": .array([.object([
-                    "kind": .string("relative"),
-                    "minutesBefore": .int(15)
-                ])])
-            ])])
-        ]), against: write.inputSchema))
-        #expect(try validates(.object([
-            "action": .string("create"),
-            "title": .string("Work")
-        ]), against: manage.inputSchema))
+        #expect(
+            try validates(
+                .object([
+                    "filter": .string("upcoming"),
+                    "days": .int(14),
+                    "limit": .int(25),
+                    "offset": .int(0),
+                    "search": .string("release|follow-up")
+                ]), against: query.inputSchema))
+        #expect(
+            try validates(
+                .object([
+                    "upsert": .array([
+                        .object([
+                            "title": .string("Call the office"),
+                            "startDate": .string("2026-09-04T14:00:00-05:00"),
+                            "alarms": .array([
+                                .object([
+                                    "kind": .string("relative"),
+                                    "minutesBefore": .int(15)
+                                ])
+                            ])
+                        ])
+                    ])
+                ]), against: write.inputSchema))
+        #expect(
+            try validates(
+                .object([
+                    "action": .string("create"),
+                    "title": .string("Work")
+                ]), against: manage.inputSchema))
 
-        #expect(try !validates(.object([
-            "upsert": .array([.object([
-                "title": .string("Invalid alarm"),
-                "alarms": .array([.object(["kind": .string("sometimes")])])
-            ])])
-        ]), against: write.inputSchema))
-        #expect(try !validates(.object([
-            "upsert": .array([.object([
-                "title": .string("Legacy alarm shorthand"),
-                "alarms": .array([.int(15)])
-            ])])
-        ]), against: write.inputSchema))
+        #expect(
+            try !validates(
+                .object([
+                    "upsert": .array([
+                        .object([
+                            "title": .string("Invalid alarm"),
+                            "alarms": .array([.object(["kind": .string("sometimes")])])
+                        ])
+                    ])
+                ]), against: write.inputSchema))
+        #expect(
+            try !validates(
+                .object([
+                    "upsert": .array([
+                        .object([
+                            "title": .string("Legacy alarm shorthand"),
+                            "alarms": .array([.int(15)])
+                        ])
+                    ])
+                ]), against: write.inputSchema))
     }
 
     /// One minimal valid call per tool.
     private static let calls: [(String, [String: Value]?)] = [
         ("query_reminders", nil),
-        ("write_reminders", [
-            "upsert": .array([.object(["title": .string("Contract test")])])
-        ]),
+        (
+            "write_reminders",
+            [
+                "upsert": .array([.object(["title": .string("Contract test")])])
+            ]
+        ),
         ("get_reminder_lists", nil),
-        ("manage_reminder_list", [
-            "action": .string("create"),
-            "title": .string("Contract list")
-        ]),
+        (
+            "manage_reminder_list",
+            [
+                "action": .string("create"),
+                "title": .string("Contract list")
+            ]
+        ),
         ("overview", nil)
     ]
 

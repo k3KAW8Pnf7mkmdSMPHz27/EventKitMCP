@@ -349,7 +349,8 @@ public actor ReminderService: ReminderServiceProtocol {
             calendars = allowed
         }
 
-        let predicate = includeDone
+        let predicate =
+            includeDone
             ? reminderStore.predicateForReminders(in: calendars)
             : reminderStore.predicateForIncompleteReminders(
                 withDueDateStarting: nil,
@@ -779,11 +780,12 @@ public actor ReminderService: ReminderServiceProtocol {
 
     private static func mapAlarm(_ alarm: EKAlarm) -> ReminderAlarmModel? {
         if let structured = alarm.structuredLocation, let coordinate = structured.geoLocation?.coordinate {
-            let proximity: ReminderAlarmModel.Proximity = switch alarm.proximity {
-            case .enter: .enter
-            case .leave: .leave
-            default: .none
-            }
+            let proximity: ReminderAlarmModel.Proximity =
+                switch alarm.proximity {
+                case .enter: .enter
+                case .leave: .leave
+                default: .none
+                }
             return .location(
                 .init(
                     title: structured.title ?? "",
@@ -817,8 +819,9 @@ public actor ReminderService: ReminderServiceProtocol {
 
     private func hexFromColor(_ cgColor: CGColor?) -> String? {
         guard let color = cgColor,
-              let components = color.components,
-              components.count >= 3 else {
+            let components = color.components,
+            components.count >= 3
+        else {
             return nil
         }
 

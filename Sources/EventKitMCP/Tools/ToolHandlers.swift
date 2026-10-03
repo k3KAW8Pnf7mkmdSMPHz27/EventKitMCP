@@ -82,7 +82,8 @@ enum ReminderFilters {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: date)
         guard let start = calendar.date(byAdding: .day, value: 1, to: today),
-              let end = calendar.date(byAdding: .day, value: days + 1, to: today) else { return [] }
+            let end = calendar.date(byAdding: .day, value: days + 1, to: today)
+        else { return [] }
         return reminders.filter { r in
             guard let due = r.dueDate else { return false }
             return due >= start && due < end
@@ -274,10 +275,12 @@ public func handleToolCall(
             return .failure("Unknown tool: \(name)")
         }
     } catch {
-        logger.error("Tool execution failed", metadata: [
-            "tool": "\(name)",
-            "error": "\(error.localizedDescription)"
-        ])
+        logger.error(
+            "Tool execution failed",
+            metadata: [
+                "tool": "\(name)",
+                "error": "\(error.localizedDescription)"
+            ])
         return .failure("Error: \(error.localizedDescription)")
     }
 }
@@ -315,9 +318,10 @@ private func handleQueryReminders(
         timeFilteredReminders = reminders
     }
 
-    let matchingReminders = ReminderFilters.ordered(try search.map {
-        try ReminderFilters.matching(timeFilteredReminders, pattern: $0)
-    } ?? timeFilteredReminders)
+    let matchingReminders = ReminderFilters.ordered(
+        try search.map {
+            try ReminderFilters.matching(timeFilteredReminders, pattern: $0)
+        } ?? timeFilteredReminders)
 
     if matchingReminders.isEmpty {
         var hint: String
@@ -337,7 +341,8 @@ private func handleQueryReminders(
             case .today:
                 hint = "No reminders due today. Try filter='overdue' or filter='upcoming'."
             case .upcoming:
-                hint = "No upcoming reminders in the next \(days) days. Try increasing 'days' parameter or use filter='all'."
+                hint =
+                    "No upcoming reminders in the next \(days) days. Try increasing 'days' parameter or use filter='all'."
             case .all:
                 hint = "No reminders found."
                 if !includeDone {
@@ -363,15 +368,16 @@ private func handleQueryReminders(
     let page = Array(matchingReminders.dropFirst(offset).prefix(limit))
     let hasMore = offset + page.count < matchingReminders.count
     let pageSummary = "Showing \(page.count) of \(matchingReminders.count) matching reminder(s) from offset \(offset)."
-    let text = if page.isEmpty {
-        "No reminders at offset \(offset). \(matchingReminders.count) reminder(s) match; use a smaller offset."
-    } else if search == nil && !hasMore && offset == 0 {
-        formatReminders(page)
-    } else if search != nil {
-        "Found \(matchingReminders.count) reminder(s). \(pageSummary)\n\(formatReminders(page))"
-    } else {
-        "\(pageSummary)\n\(formatReminders(page))"
-    }
+    let text =
+        if page.isEmpty {
+            "No reminders at offset \(offset). \(matchingReminders.count) reminder(s) match; use a smaller offset."
+        } else if search == nil && !hasMore && offset == 0 {
+            formatReminders(page)
+        } else if search != nil {
+            "Found \(matchingReminders.count) reminder(s). \(pageSummary)\n\(formatReminders(page))"
+        } else {
+            "\(pageSummary)\n\(formatReminders(page))"
+        }
 
     return try .success(
         text,
@@ -430,7 +436,8 @@ private func handleWriteReminders(
     // 1. Process deletes first (avoid updating items that will be deleted)
     let deleteIds = deleteArray.compactMap { $0.stringValue }
     if deleteIds.count != deleteArray.count {
-        return .invalidParameter("delete", value: "non-string element", expected: "Every element must be a reminder ID string")
+        return .invalidParameter(
+            "delete", value: "non-string element", expected: "Every element must be a reminder ID string")
     }
     for id in deleteIds {
         do {
@@ -502,7 +509,8 @@ private func handleWriteReminders(
                 // Parse alarms
                 let createAlarms = try parseAlarmsField(itemObj).setValue
                 if createAlarms?.contains(where: { $0.kind == .relative }) == true,
-                   startDateInfo == nil {
+                    startDateInfo == nil
+                {
                     throw ParseError.invalidAlarms("relative alarms require startDate")
                 }
 
@@ -784,7 +792,8 @@ enum ParseError: Error, LocalizedError {
         case .invalidSearchPattern(let value):
             return "Invalid search pattern: '\(value)'"
         case .invalidDateFormat(let value):
-            return "Invalid date format: '\(value)'. Use ISO8601 (e.g., '2026-01-06T10:00:00Z', '2026-01-06T10:00:00-06:00', '2026-01-06T10:00:00', or '2026-01-06')"
+            return
+                "Invalid date format: '\(value)'. Use ISO8601 (e.g., '2026-01-06T10:00:00Z', '2026-01-06T10:00:00-06:00', '2026-01-06T10:00:00', or '2026-01-06')"
         case .invalidPriorityValue(let value):
             return "Invalid priority: '\(value)'. Use 'high', 'medium', 'low', or 'none'"
         case .invalidFilterValue(let value):
@@ -969,28 +978,33 @@ private func parseAlarmsField(
             alarms.append(.relative(minutesBefore: minutes))
         case "absolute":
             guard let value = object["absoluteDate"]?.stringValue,
-                  let date = parseDate(value) else {
+                let date = parseDate(value)
+            else {
                 throw ParseError.invalidAlarms("absolute element \(index) needs a valid absoluteDate")
             }
             alarms.append(.absolute(date))
         case "location":
             guard let title = object["title"]?.stringValue,
-                  let latitude = object["latitude"]?.numberValue,
-                  let longitude = object["longitude"]?.numberValue,
-                  let radius = object["radius"]?.numberValue,
-                  radius >= 0,
-                  let proximityValue = object["proximity"]?.stringValue,
-                  let proximity = ReminderAlarmModel.Proximity(rawValue: proximityValue),
-                  proximity != .none else {
-                throw ParseError.invalidAlarms("location element \(index) needs title, coordinates, non-negative radius, and enter/leave proximity")
+                let latitude = object["latitude"]?.numberValue,
+                let longitude = object["longitude"]?.numberValue,
+                let radius = object["radius"]?.numberValue,
+                radius >= 0,
+                let proximityValue = object["proximity"]?.stringValue,
+                let proximity = ReminderAlarmModel.Proximity(rawValue: proximityValue),
+                proximity != .none
+            else {
+                throw ParseError.invalidAlarms(
+                    "location element \(index) needs title, coordinates, non-negative radius, and enter/leave proximity"
+                )
             }
             guard (-90...90).contains(latitude), (-180...180).contains(longitude) else {
                 throw ParseError.invalidAlarms("location element \(index) has invalid coordinates")
             }
-            alarms.append(.location(
-                .init(title: title, latitude: latitude, longitude: longitude, radius: radius),
-                proximity: proximity
-            ))
+            alarms.append(
+                .location(
+                    .init(title: title, latitude: latitude, longitude: longitude, radius: radius),
+                    proximity: proximity
+                ))
         default:
             throw ParseError.invalidAlarms("unknown kind '\(kind)' at element \(index)")
         }
@@ -1010,14 +1024,16 @@ private func parseDateField(
     let timeZoneIdentifier = try parseTimeZone(object[timeZoneKey])
     let timeZone = timeZoneIdentifier.flatMap(TimeZone.init(identifier:))
     guard let string = value.stringValue,
-          let parsed = parseDateWithTimeInfo(string, in: timeZone) else {
+        let parsed = parseDateWithTimeInfo(string, in: timeZone)
+    else {
         throw ParseError.invalidDateFormat(value.stringValue ?? "(non-string value)")
     }
-    return .set(ReminderDateValue(
-        date: parsed.date,
-        timeZoneIdentifier: timeZoneIdentifier,
-        isAllDay: !parsed.hasTime
-    ))
+    return .set(
+        ReminderDateValue(
+            date: parsed.date,
+            timeZoneIdentifier: timeZoneIdentifier,
+            isAllDay: !parsed.hasTime
+        ))
 }
 
 private func parseStringField(
@@ -1036,8 +1052,9 @@ private func parseURL(_ value: Value?) throws -> String? {
     guard let value else { return nil }
     if value.isNull { return nil }
     guard let string = value.stringValue,
-          let url = URL(string: string),
-          url.scheme?.isEmpty == false else {
+        let url = URL(string: string),
+        url.scheme?.isEmpty == false
+    else {
         throw ParseError.invalidURL(value.stringValue ?? "(non-string value)")
     }
     return string
@@ -1179,11 +1196,15 @@ private func formatOverview(
     let weekdayFormatter = DateFormatter()
     weekdayFormatter.dateFormat = "EEEE"  // Full weekday name
     let timezone = TimeZone.current.identifier
-    lines.append("Overview as of \(dateFormatter.string(from: now)) (\(timezone)). Today is \(weekdayFormatter.string(from: now)).")
+    lines.append(
+        "Overview as of \(dateFormatter.string(from: now)) (\(timezone)). Today is \(weekdayFormatter.string(from: now))."
+    )
     lines.append("")
 
     // Summary counts - focus on actionable items first
-    lines.append("SUMMARY: \(scheduledCount) scheduled (\(overdue.count) overdue, \(today.count) today, \(upcoming.count) upcoming) + \(unscheduledAttentionCount) unscheduled high/medium priority + \(unscheduledOtherCount) other unscheduled")
+    lines.append(
+        "SUMMARY: \(scheduledCount) scheduled (\(overdue.count) overdue, \(today.count) today, \(upcoming.count) upcoming) + \(unscheduledAttentionCount) unscheduled high/medium priority + \(unscheduledOtherCount) other unscheduled"
+    )
     lines.append("")
 
     // Lists with counts (only show lists with incomplete reminders)
@@ -1263,7 +1284,8 @@ private func formatOverview(
     // Tips - single line, concise
     if overdue.count > 10 {
         lines.append("")
-        lines.append("TIPS: Notes hidden. query_reminders shows full details. \(overdue.count) overdue total (10 shown).")
+        lines.append(
+            "TIPS: Notes hidden. query_reminders shows full details. \(overdue.count) overdue total (10 shown).")
     } else {
         lines.append("")
         lines.append("TIPS: Notes hidden. query_reminders shows full details (notes, URLs, recurrence).")

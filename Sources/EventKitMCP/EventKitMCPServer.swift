@@ -51,9 +51,10 @@ struct EventKitMCPServer: AsyncParsableCommand {
 
         // Parse allowed lists
         let allowedListIds: Set<String>? = allowedLists.map { listString in
-            Set(listString.split(separator: ",")
-                .map { String($0).trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty })
+            Set(
+                listString.split(separator: ",")
+                    .map { String($0).trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty })
         }
 
         // Initialize services
@@ -165,7 +166,8 @@ enum ToolRegistry {
         Tool(
             name: "query_reminders",
             title: "Query Reminders",
-            description: "Query reminders by list, time filter, and regex search. Supplied constraints are combined. Results are paginated: limit defaults to 25 (maximum 100), and offset selects the next page. Use regex alternation (id1|id2|id3) to match multiple IDs in one call.",
+            description:
+                "Query reminders by list, time filter, and regex search. Supplied constraints are combined. Results are paginated: limit defaults to 25 (maximum 100), and offset selects the next page. Use regex alternation (id1|id2|id3) to match multiple IDs in one call.",
             inputSchema: SchemaHelpers.schemaToValue(QueryRemindersInput.self),
             annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false),
             outputSchema: SchemaHelpers.schemaToValue(QueryRemindersOutput.self)
@@ -175,7 +177,8 @@ enum ToolRegistry {
         Tool(
             name: "write_reminders",
             title: "Write Reminders",
-            description: "Create, update, or delete reminders. BATCH MULTIPLE OPERATIONS in one call for efficiency. Use 'upsert' array: items without 'id' create new reminders, items with 'id' update existing. Use 'delete' array for IDs to permanently remove. PREFER marking reminders done (done: true) over deleting—done reminders preserve history and can be reviewed later. Only delete for duplicates, mistakes, or when explicitly requested.",
+            description:
+                "Create, update, or delete reminders. BATCH MULTIPLE OPERATIONS in one call for efficiency. Use 'upsert' array: items without 'id' create new reminders, items with 'id' update existing. Use 'delete' array for IDs to permanently remove. PREFER marking reminders done (done: true) over deleting—done reminders preserve history and can be reviewed later. Only delete for duplicates, mistakes, or when explicitly requested.",
             inputSchema: SchemaHelpers.schemaToValue(WriteRemindersInput.self),
             annotations: .init(destructiveHint: true, idempotentHint: false, openWorldHint: false),
             outputSchema: SchemaHelpers.schemaToValue(WriteRemindersOutput.self)
@@ -193,7 +196,8 @@ enum ToolRegistry {
         Tool(
             name: "manage_reminder_list",
             title: "Manage Reminder List",
-            description: "Create or delete reminder lists. Use action='create' with title (and optional color), or action='delete' with id.",
+            description:
+                "Create or delete reminder lists. Use action='create' with title (and optional color), or action='delete' with id.",
             inputSchema: SchemaHelpers.schemaToValue(ManageReminderListInput.self),
             annotations: .init(destructiveHint: true, idempotentHint: false, openWorldHint: false),
             outputSchema: SchemaHelpers.schemaToValue(ManageReminderListOutput.self)
@@ -203,7 +207,8 @@ enum ToolRegistry {
         Tool(
             name: "overview",
             title: "Overview",
-            description: "Get a concise overview: current date/time with timezone, scheduled vs unscheduled breakdown (with overdue/today/upcoming counts), all lists with counts, high-priority unscheduled items needing attention, overdue and today's reminders with details, and upcoming week summary",
+            description:
+                "Get a concise overview: current date/time with timezone, scheduled vs unscheduled breakdown (with overdue/today/upcoming counts), all lists with counts, high-priority unscheduled items needing attention, overdue and today's reminders with details, and upcoming week summary",
             inputSchema: SchemaHelpers.schemaToValue(EmptyInput.self),
             annotations: .init(readOnlyHint: true, idempotentHint: true, openWorldHint: false),
             outputSchema: SchemaHelpers.schemaToValue(OverviewOutput.self)

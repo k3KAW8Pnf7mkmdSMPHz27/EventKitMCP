@@ -103,19 +103,24 @@ public enum RRuleParser {
         let daysOfTheWeek = try parseByDay(components["BYDAY"])
 
         // Parse BYMONTHDAY
-        let daysOfTheMonth = try parseIntArray(components["BYMONTHDAY"], name: "BYMONTHDAY", range: -31...31, excludeZero: true)
+        let daysOfTheMonth = try parseIntArray(
+            components["BYMONTHDAY"], name: "BYMONTHDAY", range: -31...31, excludeZero: true)
 
         // Parse BYMONTH
-        let monthsOfTheYear = try parseIntArray(components["BYMONTH"], name: "BYMONTH", range: 1...12, excludeZero: false)
+        let monthsOfTheYear = try parseIntArray(
+            components["BYMONTH"], name: "BYMONTH", range: 1...12, excludeZero: false)
 
         // Parse BYWEEKNO
-        let weeksOfTheYear = try parseIntArray(components["BYWEEKNO"], name: "BYWEEKNO", range: -53...53, excludeZero: true)
+        let weeksOfTheYear = try parseIntArray(
+            components["BYWEEKNO"], name: "BYWEEKNO", range: -53...53, excludeZero: true)
 
         // Parse BYYEARDAY
-        let daysOfTheYear = try parseIntArray(components["BYYEARDAY"], name: "BYYEARDAY", range: -366...366, excludeZero: true)
+        let daysOfTheYear = try parseIntArray(
+            components["BYYEARDAY"], name: "BYYEARDAY", range: -366...366, excludeZero: true)
 
         // Parse BYSETPOS
-        let setPositions = try parseIntArray(components["BYSETPOS"], name: "BYSETPOS", range: -366...366, excludeZero: true)
+        let setPositions = try parseIntArray(
+            components["BYSETPOS"], name: "BYSETPOS", range: -366...366, excludeZero: true)
 
         return EKRecurrenceRule(
             recurrenceWith: frequency,
@@ -213,7 +218,8 @@ public enum RRuleParser {
 
         let pattern = #"^([+-]?\d*)?([A-Z]{2})$"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
-              let match = regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value)) else {
+            let match = regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value))
+        else {
             return nil
         }
 
@@ -246,7 +252,9 @@ public enum RRuleParser {
         }
     }
 
-    private static func parseIntArray(_ value: String?, name: String, range: ClosedRange<Int>, excludeZero: Bool) throws -> [Int]? {
+    private static func parseIntArray(_ value: String?, name: String, range: ClosedRange<Int>, excludeZero: Bool) throws
+        -> [Int]?
+    {
         guard let value = value else { return nil }
 
         var result: [Int] = []
