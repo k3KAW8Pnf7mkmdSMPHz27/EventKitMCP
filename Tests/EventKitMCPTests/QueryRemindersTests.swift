@@ -60,20 +60,21 @@ struct QueryRemindersTests {
 
     @Test("Structured query preserves time zones and every alarm kind")
     func structuredTimeZonesAndAlarms() async throws {
+        let noon = TestFixtures.todayNoon
         let service = MockReminderService()
         service.mockReminders = [
             ReminderModel(
                 id: "zoned",
                 title: "Zoned reminder",
-                dueDate: TestFixtures.todayNoon,
+                dueDate: noon,
                 dueTimeZone: "America/Chicago",
                 listId: "default",
                 listName: "Default",
-                startDate: TestFixtures.todayNoon,
+                startDate: noon,
                 startTimeZone: "Europe/Paris",
                 alarms: [
                     .relative(minutesBefore: 15),
-                    .absolute(TestFixtures.todayNoon),
+                    .absolute(noon),
                     .location(
                         .init(title: "Office", latitude: 41.8781, longitude: -87.6298, radius: 100),
                         proximity: .enter
@@ -98,10 +99,21 @@ struct QueryRemindersTests {
             Issue.record("Expected structured alarms")
             return
         }
-        #expect(
-            Set(alarms.compactMap { $0.objectValue?["kind"]?.stringValue }) == [
-                "relative", "absolute", "location"
-            ])
+        let byKind = Dictionary(
+            uniqueKeysWithValues: alarms.compactMap { alarm -> (String, [String: Value])? in
+                guard let object = alarm.objectValue, let kind = object["kind"]?.stringValue else { return nil }
+                return (kind, object)
+            })
+        #expect(Set(byKind.keys) == ["relative", "absolute", "location"])
+        #expect(byKind["relative"]?["minutesBefore"]?.intValue == 15)
+        let absoluteDate = try #require(byKind["absolute"]?["absoluteDate"]?.stringValue)
+        #expect(try Date(absoluteDate, strategy: .iso8601) == noon)
+        let location = try #require(byKind["location"])
+        #expect(location["title"]?.stringValue == "Office")
+        #expect(location["proximity"]?.stringValue == "enter")
+        #expect(location["latitude"]?.doubleValue == 41.8781)
+        #expect(location["longitude"]?.doubleValue == -87.6298)
+        #expect(location["radius"].flatMap { $0.doubleValue ?? $0.intValue.map(Double.init) } == 100)
     }
 
     // MARK: - ID-based search queries

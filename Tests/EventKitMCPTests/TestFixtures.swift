@@ -5,12 +5,12 @@ import Foundation
 enum TestFixtures {
     // MARK: - Common Dates
 
-    /// Yesterday at midnight
+    /// This time yesterday
     static var yesterday: Date {
         Calendar.current.date(byAdding: .day, value: -1, to: Date())!
     }
 
-    /// Tomorrow at midnight
+    /// This time tomorrow
     static var tomorrow: Date {
         Calendar.current.date(byAdding: .day, value: 1, to: Date())!
     }

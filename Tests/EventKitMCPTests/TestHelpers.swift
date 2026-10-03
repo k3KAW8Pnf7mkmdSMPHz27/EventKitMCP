@@ -79,14 +79,16 @@ func callTool(
     _ name: String,
     arguments: [String: Value]? = nil,
     reminderService: MockReminderService = MockReminderService(),
-    readOnly: Bool = false
+    readOnly: Bool = false,
+    now: Date = Date()
 ) async -> CallTool.Result {
     await handleToolCall(
         name: name,
         arguments: arguments,
         reminderService: reminderService,
         logger: testLogger,
-        readOnly: readOnly
+        readOnly: readOnly,
+        now: now
     )
 }
 
@@ -99,7 +101,8 @@ func queryReminders(
     includeDone: Bool? = nil,
     limit: Int? = nil,
     offset: Int? = nil,
-    service: MockReminderService = MockReminderService()
+    service: MockReminderService = MockReminderService(),
+    now: Date = Date()
 ) async -> CallTool.Result {
     var args: [String: Value] = [:]
 
@@ -128,7 +131,8 @@ func queryReminders(
     return await callTool(
         "query_reminders",
         arguments: args.isEmpty ? nil : args,
-        reminderService: service
+        reminderService: service,
+        now: now
     )
 }
 
@@ -179,7 +183,8 @@ func manageReminderList(
 
 /// Execute overview tool
 func getOverview(
-    service: MockReminderService = MockReminderService()
+    service: MockReminderService = MockReminderService(),
+    now: Date = Date()
 ) async -> CallTool.Result {
-    await callTool("overview", reminderService: service)
+    await callTool("overview", reminderService: service, now: now)
 }

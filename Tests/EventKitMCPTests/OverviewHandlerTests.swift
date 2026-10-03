@@ -145,12 +145,38 @@ struct OverviewHandlerTests {
             TestFixtures.reminder(title: "Overdue High", priority: .high, dueDate: TestFixtures.yesterday),
             TestFixtures.reminder(
                 id: "r2", title: "Overdue Medium", priority: .medium, dueDate: TestFixtures.yesterday),
-            TestFixtures.reminder(id: "r3", title: "Normal Task")
+            TestFixtures.reminder(id: "r3", title: "Undated High", priority: .high)
         ]
 
         let result = await getOverview(service: service)
 
-        result.expectText(containing: "Work: 3 incomplete, 2 overdue, 1 high, 1 medium")
+        result.expectText(containing: "Work: 3 incomplete, 2 overdue, 2 high, 1 medium")
+    }
+
+    @Test("Overview orders overdue by priority and today by time")
+    func sectionOrdering() async throws {
+        let now = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 10, hour: 12)))
+        let startOfToday = Calendar.current.startOfDay(for: now)
+        func at(day: Int, hour: Int) -> Date {
+            Calendar.current.date(byAdding: DateComponents(day: day, hour: hour), to: startOfToday)!
+        }
+        let service = MockReminderService()
+        service.mockLists = [TestFixtures.workList]
+        service.mockReminders = [
+            TestFixtures.reminder(id: "t2", title: "Afternoon call", dueDate: at(day: 0, hour: 14)),
+            TestFixtures.reminder(id: "t1", title: "Morning standup", dueDate: at(day: 0, hour: 9)),
+            TestFixtures.reminder(id: "o1", title: "Old low", priority: .low, dueDate: at(day: -5, hour: 9)),
+            TestFixtures.reminder(id: "o2", title: "Recent high", priority: .high, dueDate: at(day: -1, hour: 9))
+        ]
+
+        let text = try #require(await getOverview(service: service, now: now).textContent)
+
+        let lines = text.split(separator: "\n")
+        let positions = ["Recent high", "Old low", "Morning standup", "Afternoon call"].compactMap { title in
+            lines.firstIndex { $0.hasPrefix("- \(title) ") }
+        }
+        #expect(positions.count == 4, "\(text)")
+        #expect(positions == positions.sorted(), "\(text)")
     }
 
     @Test("Overview truncates overdue section when more than 10 items")
