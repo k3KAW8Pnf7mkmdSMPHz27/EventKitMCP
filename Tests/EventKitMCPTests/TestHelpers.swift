@@ -132,6 +132,22 @@ func queryReminders(
     )
 }
 
+/// Execute write_reminders with upsert items and reminder IDs to delete
+func writeReminders(
+    upsert: [[String: Value]] = [],
+    delete: [String] = [],
+    service: MockReminderService = MockReminderService()
+) async -> CallTool.Result {
+    var args: [String: Value] = [:]
+    if !upsert.isEmpty {
+        args["upsert"] = .array(upsert.map(Value.object))
+    }
+    if !delete.isEmpty {
+        args["delete"] = .array(delete.map(Value.string))
+    }
+    return await callTool("write_reminders", arguments: args, reminderService: service)
+}
+
 /// Execute manage_reminder_list tool
 func manageReminderList(
     action: String,

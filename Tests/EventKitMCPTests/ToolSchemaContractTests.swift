@@ -31,23 +31,10 @@ struct ToolSchemaContractTests {
             ]
         )]
 
-        let calls: [(String, [String: Value]?)] = [
-            ("query_reminders", nil),
-            ("write_reminders", [
-                "upsert": .array([.object(["title": .string("Contract test")])])
-            ]),
-            ("get_reminder_lists", nil),
-            ("manage_reminder_list", [
-                "action": .string("create"),
-                "title": .string("Contract list")
-            ]),
-            ("overview", nil)
-        ]
-
         let tools = ToolRegistry.allTools()
-        #expect(tools.count == 5)
+        #expect(tools.count == Self.calls.count)
 
-        for (name, arguments) in calls {
+        for (name, arguments) in Self.calls {
             let tool = try #require(tools.first { $0.name == name })
             let outputSchema = try #require(tool.outputSchema)
             let result = await callTool(name, arguments: arguments, reminderService: service)
@@ -55,6 +42,24 @@ struct ToolSchemaContractTests {
             let structuredContent = try #require(result.structuredContent)
             #expect(try validates(structuredContent, against: outputSchema), "Invalid structured output for \(name)")
             #expect(!result.content.isEmpty)
+        }
+    }
+
+    @Test("Read-only mode refuses every mutating tool before it reaches the service")
+    func readOnlyRefusesMutations() async {
+        for (name, arguments) in Self.calls where ToolRegistry.mutatingTools.contains(name) {
+            let service = MockReminderService()
+            let result = await callTool(name, arguments: arguments, reminderService: service, readOnly: true)
+            result.expectError(containing: "not allowed in read-only mode")
+            #expect(service.mockLists.isEmpty && service.mockReminders.isEmpty, "\(name) reached the service")
+        }
+    }
+
+    @Test("Read-only mode still serves every read-only tool")
+    func readOnlyServesReads() async {
+        for (name, arguments) in Self.calls where !ToolRegistry.mutatingTools.contains(name) {
+            let result = await callTool(name, arguments: arguments, readOnly: true)
+            result.expectSuccess()
         }
     }
 
@@ -157,6 +162,20 @@ struct ToolSchemaContractTests {
             ])])
         ]), against: write.inputSchema))
     }
+
+    /// One minimal valid call per tool.
+    private static let calls: [(String, [String: Value]?)] = [
+        ("query_reminders", nil),
+        ("write_reminders", [
+            "upsert": .array([.object(["title": .string("Contract test")])])
+        ]),
+        ("get_reminder_lists", nil),
+        ("manage_reminder_list", [
+            "action": .string("create"),
+            "title": .string("Contract list")
+        ]),
+        ("overview", nil)
+    ]
 
     private func validates(_ instance: Value, against schemaValue: Value) throws -> Bool {
         let encoder = JSONEncoder()

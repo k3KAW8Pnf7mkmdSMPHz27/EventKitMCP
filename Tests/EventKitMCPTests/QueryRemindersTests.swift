@@ -1,5 +1,4 @@
 import Foundation
-import Logging
 import Testing
 
 @testable import EventKitMCP
@@ -9,13 +8,11 @@ import MCP
 @MainActor
 @Suite("Query Reminders Handler Tests")
 struct QueryRemindersTests {
-    let logger = Logger(label: "test")
-
     @Test("Default limit bounds output and offset retrieves the next page")
     func paginatesResults() async throws {
         let service = MockReminderService()
         service.mockReminders = (0..<30).map {
-            ReminderModel(id: "r\($0)", title: "Task \($0)", listId: "default", listName: "Default")
+            TestFixtures.reminder(id: "r\($0)", title: "Task \($0)", listId: "default", listName: "Default")
         }
 
         let firstPage = await queryReminders(service: service)
@@ -28,12 +25,7 @@ struct QueryRemindersTests {
         #expect(first["totalCount"]?.intValue == 30)
         #expect(first["hasMore"]?.boolValue == true)
 
-        let secondPage = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["limit": .int(10), "offset": .int(25)],
-            reminderService: service,
-            logger: logger
-        )
+        let secondPage = await queryReminders(limit: 10, offset: 25, service: service)
         guard case .object(let second)? = secondPage.structuredContent,
               case .array(let secondReminders)? = second["reminders"] else {
             Issue.record("Expected a structured second page")
@@ -51,7 +43,7 @@ struct QueryRemindersTests {
         let finalDay = try #require(calendar.date(byAdding: .day, value: 7, to: today))
         let finalAfternoon = try #require(calendar.date(byAdding: .hour, value: 18, to: finalDay))
         service.mockReminders = [
-            ReminderModel(
+            TestFixtures.reminder(
                 id: "last-day",
                 title: "Last-day afternoon",
                 dueDate: finalAfternoon,
@@ -60,12 +52,7 @@ struct QueryRemindersTests {
             )
         ]
 
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["filter": .string("upcoming"), "days": .int(7)],
-            reminderService: service,
-            logger: logger
-        )
+        let result = await queryReminders(filter: "upcoming", days: 7, service: service)
         result.expectText(containing: "Last-day afternoon")
     }
 
@@ -115,397 +102,157 @@ struct QueryRemindersTests {
 
     @Test("Search by IDs returns specific reminders")
     func testSearchByIds() async throws {
-        let mockService = MockReminderService()
-        mockService.mockReminders = [
-            ReminderModel(id: "r1", title: "Task 1", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Work"),
-            ReminderModel(id: "r2", title: "Task 2", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Work"),
-            ReminderModel(id: "r3", title: "Task 3", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Work")
+        let service = MockReminderService()
+        service.mockReminders = [
+            TestFixtures.reminder(title: "Task 1"),
+            TestFixtures.reminder(id: "r2", title: "Task 2"),
+            TestFixtures.reminder(id: "r3", title: "Task 3")
         ]
 
         // Use regex alternation to search for multiple IDs
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["search": .string("^(r1|r3)$")],
-            reminderService: mockService,
+        let result = await queryReminders(search: "^(r1|r3)$", service: service)
 
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Found 2 reminder(s)"))
-            #expect(text.contains("Task 1"))
-            #expect(text.contains("Task 3"))
-            #expect(!text.contains("Task 2"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectText(containing: "Found 2 reminder(s)", "Task 1", "Task 3")
+        result.expectTextNot(containing: "Task 2")
     }
 
     @Test("Search by ID returns single reminder")
     func testSearchBySingleId() async throws {
-        let mockService = MockReminderService()
-        mockService.mockReminders = [
-            ReminderModel(id: "r1", title: "Task 1", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Work"),
-            ReminderModel(id: "r2", title: "Task 2", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Work")
+        let service = MockReminderService()
+        service.mockReminders = [
+            TestFixtures.reminder(title: "Task 1"),
+            TestFixtures.reminder(id: "r2", title: "Task 2")
         ]
 
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["search": .string("^r1$")],
-            reminderService: mockService,
+        let result = await queryReminders(search: "^r1$", service: service)
 
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Found 1 reminder(s)"))
-            #expect(text.contains("Task 1"))
-            #expect(!text.contains("Task 2"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectText(containing: "Found 1 reminder(s)", "Task 1")
+        result.expectTextNot(containing: "Task 2")
     }
 
     @Test("Search by nonexistent ID returns no results")
     func testSearchByNonexistentId() async throws {
-        let mockService = MockReminderService()
-        mockService.mockReminders = [
-            ReminderModel(id: "r1", title: "Task 1", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Work")
-        ]
+        let service = MockReminderService()
+        service.mockReminders = [TestFixtures.reminder(title: "Task 1")]
 
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["search": .string("^nonexistent$")],
-            reminderService: mockService,
+        let result = await queryReminders(search: "^nonexistent$", service: service)
 
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("No reminders found"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectText(containing: "No reminders found")
     }
 
     // MARK: - Search queries
 
     @Test("Query by search returns matching reminders")
     func testQueryBySearch() async throws {
-        let mockService = MockReminderService()
-        mockService.mockReminders = [
-            ReminderModel(id: "r1", title: "Buy groceries", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Personal"),
-            ReminderModel(id: "r2", title: "Call mom", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Personal"),
-            ReminderModel(id: "r3", title: "Buy milk", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Personal")
+        let service = MockReminderService()
+        service.mockReminders = [
+            TestFixtures.reminder(title: "Buy groceries", listName: "Personal"),
+            TestFixtures.reminder(id: "r2", title: "Call mom", listName: "Personal"),
+            TestFixtures.reminder(id: "r3", title: "Buy milk", listName: "Personal")
         ]
 
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["search": .string("Buy")],
-            reminderService: mockService,
+        let result = await queryReminders(search: "Buy", service: service)
 
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Found 2 reminder(s)"))
-            #expect(text.contains("Buy groceries"))
-            #expect(text.contains("Buy milk"))
-            #expect(!text.contains("Call mom"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectText(containing: "Found 2 reminder(s)", "Buy groceries", "Buy milk")
+        result.expectTextNot(containing: "Call mom")
     }
 
     @Test("Query by search with no matches includes hint")
     func testQueryBySearchNoMatches() async throws {
-        let mockService = MockReminderService()
-        mockService.mockReminders = [
-            ReminderModel(id: "r1", title: "Task 1", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Work")
-        ]
+        let service = MockReminderService()
+        service.mockReminders = [TestFixtures.reminder(title: "Task 1")]
 
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["search": .string("nonexistent")],
-            reminderService: mockService,
+        let result = await queryReminders(search: "nonexistent", service: service)
 
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("No reminders found matching 'nonexistent'"))
-            #expect(text.contains("includeDone=true"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectText(containing: "No reminders found matching 'nonexistent'", "includeDone=true")
     }
 
     @Test("Query by search with no matches and includeDone omits hint")
     func testQueryBySearchNoMatchesWithIncludeCompleted() async throws {
-        let mockService = MockReminderService()
-        mockService.mockReminders = []
+        let result = await queryReminders(search: "nonexistent", includeDone: true)
 
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["search": .string("nonexistent"), "includeDone": .bool(true)],
-            reminderService: mockService,
-
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("No reminders found matching 'nonexistent'"))
-            #expect(!text.contains("includeDone"))
-            #expect(text.contains("broader search term"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectText(containing: "No reminders found matching 'nonexistent'", "broader search term")
+        result.expectTextNot(containing: "includeDone")
     }
 
     // MARK: - Filter queries
 
     @Test("Query with filter=all returns all reminders")
     func testQueryFilterAll() async throws {
-        let mockService = MockReminderService()
-        mockService.mockReminders = [
-            ReminderModel(id: "r1", title: "Task 1", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Work"),
-            ReminderModel(id: "r2", title: "Task 2", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Work")
+        let service = MockReminderService()
+        service.mockReminders = [
+            TestFixtures.reminder(title: "Task 1"),
+            TestFixtures.reminder(id: "r2", title: "Task 2")
         ]
 
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["filter": .string("all")],
-            reminderService: mockService,
+        let result = await queryReminders(filter: "all", service: service)
 
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Task 1"))
-            #expect(text.contains("Task 2"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectText(containing: "Task 1", "Task 2")
     }
 
     @Test("Query with filter=overdue returns only overdue reminders")
     func testQueryFilterOverdue() async throws {
-        let mockService = MockReminderService()
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
-
-        mockService.mockReminders = [
-            ReminderModel(id: "r1", title: "Overdue Task", notes: nil, done: false, priority: .none, dueDate: yesterday, listId: "list-1", listName: "Work"),
-            ReminderModel(id: "r2", title: "Future Task", notes: nil, done: false, priority: .none, dueDate: tomorrow, listId: "list-1", listName: "Work")
+        let service = MockReminderService()
+        service.mockReminders = [
+            TestFixtures.reminder(title: "Overdue Task", dueDate: TestFixtures.yesterday),
+            TestFixtures.reminder(id: "r2", title: "Future Task", dueDate: TestFixtures.tomorrow)
         ]
 
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["filter": .string("overdue")],
-            reminderService: mockService,
+        let result = await queryReminders(filter: "overdue", service: service)
 
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Overdue Task"))
-            #expect(!text.contains("Future Task"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectText(containing: "Overdue Task")
+        result.expectTextNot(containing: "Future Task")
     }
 
     @Test("Query with filter=today returns today's reminders")
     func testQueryFilterToday() async throws {
-        let mockService = MockReminderService()
-        let todayNoon = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
-
-        mockService.mockReminders = [
-            ReminderModel(id: "r1", title: "Today Task", notes: nil, done: false, priority: .none, dueDate: todayNoon, listId: "list-1", listName: "Work"),
-            ReminderModel(id: "r2", title: "Tomorrow Task", notes: nil, done: false, priority: .none, dueDate: tomorrow, listId: "list-1", listName: "Work")
+        let service = MockReminderService()
+        service.mockReminders = [
+            TestFixtures.reminder(title: "Today Task", dueDate: TestFixtures.todayNoon),
+            TestFixtures.reminder(id: "r2", title: "Tomorrow Task", dueDate: TestFixtures.tomorrow)
         ]
 
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["filter": .string("today")],
-            reminderService: mockService,
+        let result = await queryReminders(filter: "today", service: service)
 
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Today Task"))
-            #expect(!text.contains("Tomorrow Task"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectText(containing: "Today Task")
+        result.expectTextNot(containing: "Tomorrow Task")
     }
 
     @Test("Query with filter=upcoming uses days parameter")
     func testQueryFilterUpcoming() async throws {
-        let mockService = MockReminderService()
-        let in3Days = Calendar.current.date(byAdding: .day, value: 3, to: Date())!
-        let in10Days = Calendar.current.date(byAdding: .day, value: 10, to: Date())!
-
-        mockService.mockReminders = [
-            ReminderModel(id: "r1", title: "Soon Task", notes: nil, done: false, priority: .none, dueDate: in3Days, listId: "list-1", listName: "Work"),
-            ReminderModel(id: "r2", title: "Later Task", notes: nil, done: false, priority: .none, dueDate: in10Days, listId: "list-1", listName: "Work")
+        let service = MockReminderService()
+        service.mockReminders = [
+            TestFixtures.reminder(title: "Soon Task", dueDate: TestFixtures.in3Days),
+            TestFixtures.reminder(id: "r2", title: "Later Task", dueDate: TestFixtures.in10Days)
         ]
 
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["filter": .string("upcoming"), "days": .int(5)],
-            reminderService: mockService,
+        let result = await queryReminders(filter: "upcoming", days: 5, service: service)
 
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Soon Task"))
-            #expect(!text.contains("Later Task"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectText(containing: "Soon Task")
+        result.expectTextNot(containing: "Later Task")
     }
 
     // MARK: - Empty filter result hints
 
-    @Test("Empty overdue filter includes hint")
-    func testEmptyOverdueFilterHint() async throws {
-        let mockService = MockReminderService()
-        mockService.mockReminders = []
+    @Test("Empty results explain how to broaden the query")
+    func emptyResultsExplainHowToBroaden() async throws {
+        let cases: [(filter: String, days: Int?, listId: String?, expected: [String])] = [
+            ("overdue", nil, nil, ["No overdue reminders found", "filter='today'", "filter='upcoming'"]),
+            ("today", nil, nil, ["No reminders due today", "filter='overdue'", "filter='upcoming'"]),
+            ("upcoming", 5, nil, ["No upcoming reminders in the next 5 days", "'days' parameter", "filter='all'"]),
+            ("all", nil, nil, ["No reminders found", "includeDone=true"]),
+            ("all", nil, "some-list", ["No reminders found", "removing listId"])
+        ]
 
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["filter": .string("overdue")],
-            reminderService: mockService,
-
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("No overdue reminders found"))
-            #expect(text.contains("filter='today'"))
-            #expect(text.contains("filter='upcoming'"))
-        } else {
-            Issue.record("Expected text content")
-        }
-    }
-
-    @Test("Empty today filter includes hint")
-    func testEmptyTodayFilterHint() async throws {
-        let mockService = MockReminderService()
-        mockService.mockReminders = []
-
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["filter": .string("today")],
-            reminderService: mockService,
-
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("No reminders due today"))
-            #expect(text.contains("filter='overdue'"))
-            #expect(text.contains("filter='upcoming'"))
-        } else {
-            Issue.record("Expected text content")
-        }
-    }
-
-    @Test("Empty upcoming filter includes hint with days")
-    func testEmptyUpcomingFilterHint() async throws {
-        let mockService = MockReminderService()
-        mockService.mockReminders = []
-
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["filter": .string("upcoming"), "days": .int(5)],
-            reminderService: mockService,
-
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("No upcoming reminders in the next 5 days"))
-            #expect(text.contains("'days' parameter"))
-            #expect(text.contains("filter='all'"))
-        } else {
-            Issue.record("Expected text content")
-        }
-    }
-
-    @Test("Empty all filter includes hint about includeDone")
-    func testEmptyAllFilterHint() async throws {
-        let mockService = MockReminderService()
-        mockService.mockReminders = []
-
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["filter": .string("all")],
-            reminderService: mockService,
-
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("No reminders found"))
-            #expect(text.contains("includeDone=true"))
-        } else {
-            Issue.record("Expected text content")
-        }
-    }
-
-    @Test("Empty all filter with listId includes hint about removing listId")
-    func testEmptyAllFilterWithListIdHint() async throws {
-        let mockService = MockReminderService()
-        mockService.mockReminders = []
-
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: ["filter": .string("all"), "listId": .string("some-list")],
-            reminderService: mockService,
-
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("No reminders found"))
-            #expect(text.contains("removing listId"))
-        } else {
-            Issue.record("Expected text content")
+        for (filter, days, listId, expected) in cases {
+            let result = await queryReminders(filter: filter, days: days, listId: listId)
+            result.expectSuccess()
+            for substring in expected {
+                #expect(
+                    result.textContent?.contains(substring) == true,
+                    "filter=\(filter) listId=\(listId ?? "nil"): expected '\(substring)', got: \(result.textContent ?? "nil")"
+                )
+            }
         }
     }
 
@@ -513,65 +260,35 @@ struct QueryRemindersTests {
 
     @Test("Search is applied within the selected time filter")
     func testSearchComposesWithFilter() async throws {
-        let mockService = MockReminderService()
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
-
-        mockService.mockReminders = [
-            ReminderModel(id: "r1", title: "Find overdue", notes: nil, done: false, priority: .none, dueDate: yesterday, listId: "list-1", listName: "Work"),
-            ReminderModel(id: "r2", title: "Other overdue", notes: nil, done: false, priority: .none, dueDate: yesterday, listId: "list-1", listName: "Work"),
-            ReminderModel(id: "r3", title: "Find unscheduled", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Work"),
-            ReminderModel(id: "r4", title: "Find personal overdue", notes: nil, done: false, priority: .none, dueDate: yesterday, listId: "list-2", listName: "Personal")
+        let service = MockReminderService()
+        service.mockReminders = [
+            TestFixtures.reminder(title: "Find overdue", dueDate: TestFixtures.yesterday),
+            TestFixtures.reminder(id: "r2", title: "Other overdue", dueDate: TestFixtures.yesterday),
+            TestFixtures.reminder(id: "r3", title: "Find unscheduled"),
+            TestFixtures.reminder(
+                id: "r4",
+                title: "Find personal overdue",
+                dueDate: TestFixtures.yesterday,
+                listId: "list-2",
+                listName: "Personal"
+            )
         ]
 
-        // Provide both search and filter
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: [
-                "search": .string("Find"),
-                "filter": .string("overdue"),
-                "listId": .string("list-1")
-            ],
-            reminderService: mockService,
+        let result = await queryReminders(filter: "overdue", search: "Find", listId: "list-1", service: service)
 
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Found 1 reminder(s)"))
-            #expect(text.contains("Find overdue"))
-            #expect(!text.contains("Other overdue"))
-            #expect(!text.contains("Find unscheduled"))
-            #expect(!text.contains("Find personal overdue"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectText(containing: "Found 1 reminder(s)", "Find overdue")
+        result.expectTextNot(containing: "Other overdue", "Find unscheduled", "Find personal overdue")
     }
 
     // MARK: - Default behavior
 
     @Test("No parameters defaults to filter=all")
     func testDefaultBehavior() async throws {
-        let mockService = MockReminderService()
-        mockService.mockReminders = [
-            ReminderModel(id: "r1", title: "Task 1", notes: nil, done: false, priority: .none, dueDate: nil, listId: "list-1", listName: "Work")
-        ]
+        let service = MockReminderService()
+        service.mockReminders = [TestFixtures.reminder(title: "Task 1")]
 
-        let result = await handleToolCall(
-            name: "query_reminders",
-            arguments: nil,
-            reminderService: mockService,
+        let result = await queryReminders(service: service)
 
-            logger: logger,
-            readOnly: false
-        )
-
-        #expect(result.isError == nil || result.isError == false)
-        if case .text(let text, _, _) = result.content[0] {
-            #expect(text.contains("Task 1"))
-        } else {
-            Issue.record("Expected text content")
-        }
+        result.expectText(containing: "Task 1")
     }
 }

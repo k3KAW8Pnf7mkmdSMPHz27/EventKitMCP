@@ -137,12 +137,10 @@ struct InputValidationTests {
     @Test("Malformed URL is rejected before mutation")
     func invalidURL() async {
         let service = MockReminderService()
-        let result = await callTool("write_reminders", arguments: [
-            "upsert": .array([.object([
-                "title": .string("Bad URL"),
-                "url": .string("not a url")
-            ])])
-        ], reminderService: service)
+        let result = await writeReminders(upsert: [[
+            "title": .string("Bad URL"),
+            "url": .string("not a url")
+        ]], service: service)
         result.expectText(containing: "Invalid URL")
         #expect(service.mockReminders.isEmpty)
     }
@@ -150,13 +148,11 @@ struct InputValidationTests {
     @Test("Unknown time zone is rejected before mutation")
     func invalidTimeZone() async {
         let service = MockReminderService()
-        let result = await callTool("write_reminders", arguments: [
-            "upsert": .array([.object([
-                "title": .string("Bad zone"),
-                "dueDate": .string("2026-09-03T12:00:00Z"),
-                "dueTimeZone": .string("Mars/Olympus")
-            ])])
-        ], reminderService: service)
+        let result = await writeReminders(upsert: [[
+            "title": .string("Bad zone"),
+            "dueDate": .string("2026-09-03T12:00:00Z"),
+            "dueTimeZone": .string("Mars/Olympus")
+        ]], service: service)
         result.expectText(containing: "Unknown time zone")
         #expect(service.mockReminders.isEmpty)
     }
@@ -164,35 +160,31 @@ struct InputValidationTests {
     @Test("Invalid and mixed alarm arrays fail atomically")
     func invalidAlarmArray() async {
         let service = MockReminderService()
-        let result = await callTool("write_reminders", arguments: [
-            "upsert": .array([.object([
-                "title": .string("Bad alarms"),
-                "startDate": .string("2026-09-03T12:00:00Z"),
-                "alarms": .array([
-                    .object([
-                        "kind": .string("relative"),
-                        "minutesBefore": .int(15)
-                    ]),
-                    .string("thirty")
-                ])
-            ])])
-        ], reminderService: service)
+        let result = await writeReminders(upsert: [[
+            "title": .string("Bad alarms"),
+            "startDate": .string("2026-09-03T12:00:00Z"),
+            "alarms": .array([
+                .object([
+                    "kind": .string("relative"),
+                    "minutesBefore": .int(15)
+                ]),
+                .string("thirty")
+            ])
+        ]], service: service)
         result.expectText(containing: "Invalid alarms")
         #expect(service.mockReminders.isEmpty)
     }
 
     @Test("Negative alarm offsets are rejected")
     func negativeAlarm() async {
-        let result = await callTool("write_reminders", arguments: [
-            "upsert": .array([.object([
-                "title": .string("Bad alarm"),
-                "startDate": .string("2026-09-03T12:00:00Z"),
-                "alarms": .array([.object([
-                    "kind": .string("relative"),
-                    "minutesBefore": .int(-1)
-                ])])
+        let result = await writeReminders(upsert: [[
+            "title": .string("Bad alarm"),
+            "startDate": .string("2026-09-03T12:00:00Z"),
+            "alarms": .array([.object([
+                "kind": .string("relative"),
+                "minutesBefore": .int(-1)
             ])])
-        ])
+        ]])
         result.expectText(containing: "non-negative")
     }
 }
