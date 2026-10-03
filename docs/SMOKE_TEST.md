@@ -13,10 +13,13 @@ before a major release. Use a scratch list; step 5 creates and deletes reminders
 3. **Tool surface.** In the MCP Inspector, the server lists 5 tools, and 3 with
    `--read-only`. *CI covers both counts through the in-memory server tests.*
 4. **Allowlist.** Start with `--allowed-lists "<real id>,stale-id"`. The server warns
-   about `stale-id`, starts, and lists only the real list. With only `stale-id`, it
-   refuses to start.
+   about `stale-id`, starts, and lists only the real list. If the default list is not
+   the real one, creating a reminder without `listId` fails with "The default reminder
+   list is outside --allowed-lists; pass listId". With only `stale-id`, it refuses to
+   start.
 5. **Round trip.** Create a reminder with every field: notes, due date with a time zone,
-   start date, priority, URL, location, RFC 5545 recurrence, and one alarm of each kind.
+   start date, priority, URL, location, RFC 5545 recurrence, `done: true`, and one alarm
+   of each kind.
    Check it in Reminders.app, update each field, clear each with `null`, then delete it.
    *CI covers each EventKit call against unsaved objects. Only the save to the real
    database is checked here.*
@@ -24,8 +27,9 @@ before a major release. Use a scratch list; step 5 creates and deletes reminders
    start date is in `Europe/Paris`. Unsaved objects show the due date moving to Paris
    with the instant kept. Confirm Reminders.app shows the same.
 7. **Completion date.** Mark a reminder done, wait a few seconds, and mark it done again.
-   Unsaved objects show EventKit re-stamping the completion date on every
-   `isCompleted = true`. Check whether Reminders.app shows the second time.
+   The completion date in Reminders.app must not move. EventKit restamps it on every
+   `isCompleted = true`, so the server writes the flag only when it changes. *CI covers
+   this against unsaved objects.*
 8. **Coloured list.** Create a list with `color: "#FF5733"` and check its colour and
    source in Reminders.app, then delete it.
 9. **Overview.** The overview header names the Mac's time zone and today's weekday.
