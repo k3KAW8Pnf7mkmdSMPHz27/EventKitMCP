@@ -257,6 +257,10 @@ Alarms use one of these tagged object shapes:
 | `--allowed-lists <ids>` | Comma-separated list IDs to restrict access to |
 | `--version` | Print the version and exit |
 
+With `--allowed-lists`, a reminder in any other list looks exactly like a missing one, and creating a
+reminder without `listId` fails unless the default list is one of the allowed lists. The server
+refuses to start when none of the IDs match an existing list.
+
 ## Development
 
 The supported development baseline is Xcode 26 with Swift 6.2 or newer. The runtime

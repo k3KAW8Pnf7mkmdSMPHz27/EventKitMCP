@@ -163,10 +163,10 @@ struct ReminderServiceWriteTests {
         }
     }
 
-    @Test("Create refuses a default list outside the allowlist and names it")
+    @Test("Create refuses a default list outside the allowlist without naming it")
     func createHiddenDefaultList() async throws {
         let f = Self.fixture(defaultToHome: true) { work, _ in [work] }
-        await #expect(throws: ReminderServiceError.listAccessDenied(f.homeId)) {
+        await #expect(throws: ReminderServiceError.defaultListNotAllowed) {
             try await f.service.createReminder(CreateReminderRequest(title: "x"))
         }
         #expect(f.store.saved.isEmpty)

@@ -53,7 +53,7 @@ extension ReminderService {
                 throw ReminderServiceError.noValidSource
             }
             guard isListAllowed(id: defaultCal.calendarIdentifier) else {
-                throw ReminderServiceError.listAccessDenied(defaultCal.calendarIdentifier)
+                throw ReminderServiceError.defaultListNotAllowed
             }
             reminder.calendar = defaultCal
         }

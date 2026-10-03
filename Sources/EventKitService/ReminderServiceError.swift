@@ -9,6 +9,8 @@ public enum ReminderServiceError: Error, LocalizedError, Equatable {
     case reminderNotFound(String)
     case noValidSource
     case listAccessDenied(String)
+    /// No `listId` was given and the default list is outside the allowlist; names no list, since the caller supplied none.
+    case defaultListNotAllowed
     /// A reminder exists but sits outside the allowlist.
     ///
     /// Carries only the caller-supplied reminder ID and describes itself exactly as
@@ -34,6 +36,8 @@ public enum ReminderServiceError: Error, LocalizedError, Equatable {
             return "No valid source found for creating reminder lists"
         case .listAccessDenied(let id):
             return "Access to reminder list '\(id)' is not allowed"
+        case .defaultListNotAllowed:
+            return "The default reminder list is outside --allowed-lists; pass listId"
         case .listCreationBlocked:
             return "Creating new reminder lists is not allowed when --allowed-lists is active"
         case .invalidURL(let value):

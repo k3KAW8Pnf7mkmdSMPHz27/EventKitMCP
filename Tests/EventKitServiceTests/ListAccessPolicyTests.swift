@@ -99,6 +99,12 @@ struct ErrorSurfaceTests {
         }
     }
 
+    @Test("A hidden default list is refused without naming any list")
+    func defaultListNotAllowedNamesNoList() throws {
+        let message = try #require(ReminderServiceError.defaultListNotAllowed.errorDescription)
+        #expect(message == "The default reminder list is outside --allowed-lists; pass listId")
+    }
+
     @Test("A denied reminder error names only the caller's reminder ID")
     func deniedReminderNamesOnlyCallersId() {
         // Previously this threw listAccessDenied(calendarIdentifier), handing back the
