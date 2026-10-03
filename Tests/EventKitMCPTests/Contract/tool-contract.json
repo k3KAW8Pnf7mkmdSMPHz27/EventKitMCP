@@ -1,0 +1,1199 @@
+[
+  {
+    "annotations" : {
+      "idempotentHint" : true,
+      "openWorldHint" : false,
+      "readOnlyHint" : true
+    },
+    "description" : "Query reminders by list, time filter, and regex search. Supplied constraints are combined. Results are paginated: limit defaults to 25 (maximum 100), and offset selects the next page. Use regex alternation (id1|id2|id3) to match multiple IDs in one call.",
+    "inputSchema" : {
+      "properties" : {
+        "days" : {
+          "description" : "Days for \"upcoming\" filter (default: 7)",
+          "type" : [
+            "integer",
+            "null"
+          ]
+        },
+        "filter" : {
+          "oneOf" : [
+            {
+              "description" : "Filter: \"all\" (default), \"overdue\", \"today\", \"upcoming\"",
+              "enum" : [
+                "all",
+                "overdue",
+                "today",
+                "upcoming"
+              ],
+              "type" : "string"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        },
+        "includeDone" : {
+          "description" : "Include done reminders (default: false)",
+          "type" : [
+            "boolean",
+            "null"
+          ]
+        },
+        "limit" : {
+          "description" : "Maximum reminders to return (default: 25, maximum: 100)",
+          "type" : [
+            "integer",
+            "null"
+          ]
+        },
+        "listId" : {
+          "description" : "List ID to filter by",
+          "type" : [
+            "string",
+            "null"
+          ]
+        },
+        "offset" : {
+          "description" : "Number of matching reminders to skip for pagination (default: 0)",
+          "type" : [
+            "integer",
+            "null"
+          ]
+        },
+        "search" : {
+          "description" : "Regex search pattern for id/title/notes, applied within the selected list and time filter",
+          "type" : [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type" : "object"
+    },
+    "name" : "query_reminders",
+    "outputSchema" : {
+      "properties" : {
+        "count" : {
+          "type" : "integer"
+        },
+        "hasMore" : {
+          "type" : "boolean"
+        },
+        "offset" : {
+          "type" : "integer"
+        },
+        "reminders" : {
+          "items" : {
+            "properties" : {
+              "alarms" : {
+                "oneOf" : [
+                  {
+                    "items" : {
+                      "properties" : {
+                        "absoluteDate" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "kind" : {
+                          "type" : "string"
+                        },
+                        "latitude" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "longitude" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "minutesBefore" : {
+                          "type" : [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "proximity" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "radius" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "title" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required" : [
+                        "kind"
+                      ],
+                      "type" : "object"
+                    },
+                    "type" : "array"
+                  },
+                  {
+                    "type" : "null"
+                  }
+                ]
+              },
+              "done" : {
+                "type" : "boolean"
+              },
+              "doneDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "dueDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "dueTimeZone" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "id" : {
+                "type" : "string"
+              },
+              "isAllDay" : {
+                "type" : "boolean"
+              },
+              "isStartAllDay" : {
+                "type" : "boolean"
+              },
+              "listId" : {
+                "type" : "string"
+              },
+              "listName" : {
+                "type" : "string"
+              },
+              "location" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "notes" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "priority" : {
+                "type" : "string"
+              },
+              "recurrence" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "startDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "startTimeZone" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "title" : {
+                "type" : "string"
+              },
+              "url" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required" : [
+              "id",
+              "title",
+              "done",
+              "priority",
+              "isAllDay",
+              "listId",
+              "listName",
+              "isStartAllDay"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        },
+        "totalCount" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "count",
+        "totalCount",
+        "offset",
+        "hasMore",
+        "reminders"
+      ],
+      "type" : "object"
+    },
+    "title" : "Query Reminders"
+  },
+  {
+    "annotations" : {
+      "destructiveHint" : true,
+      "idempotentHint" : false,
+      "openWorldHint" : false
+    },
+    "description" : "Create, update, or delete reminders. BATCH MULTIPLE OPERATIONS in one call for efficiency. Use 'upsert' array: items without 'id' create new reminders, items with 'id' update existing. Use 'delete' array for IDs to permanently remove. PREFER marking reminders done (done: true) over deleting—done reminders preserve history and can be reviewed later. Only delete for duplicates, mistakes, or when explicitly requested.",
+    "inputSchema" : {
+      "properties" : {
+        "delete" : {
+          "oneOf" : [
+            {
+              "description" : "Reminder IDs to permanently delete. Prefer setting done=true for finished tasks—only delete duplicates, mistakes, or when user explicitly requests deletion",
+              "items" : {
+                "type" : "string"
+              },
+              "type" : "array"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        },
+        "upsert" : {
+          "oneOf" : [
+            {
+              "description" : "Reminders to create (no id) or update (with id)",
+              "items" : {
+                "properties" : {
+                  "alarms" : {
+                    "oneOf" : [
+                      {
+                        "description" : "Relative, absolute, or location alarms. Relative alarms use the reminder start date. Set to null to remove all alarms.",
+                        "items" : {
+                          "properties" : {
+                            "absoluteDate" : {
+                              "description" : "ISO 8601 timestamp for an absolute alarm.",
+                              "type" : [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "kind" : {
+                              "description" : "Alarm kind: relative, absolute, or location.",
+                              "enum" : [
+                                "relative",
+                                "absolute",
+                                "location"
+                              ],
+                              "type" : "string"
+                            },
+                            "latitude" : {
+                              "type" : [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "longitude" : {
+                              "type" : [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "minutesBefore" : {
+                              "description" : "Non-negative minutes before startDate for a relative alarm.",
+                              "type" : [
+                                "integer",
+                                "null"
+                              ]
+                            },
+                            "proximity" : {
+                              "oneOf" : [
+                                {
+                                  "description" : "enter or leave for a location alarm.",
+                                  "enum" : [
+                                    "enter",
+                                    "leave"
+                                  ],
+                                  "type" : "string"
+                                },
+                                {
+                                  "type" : "null"
+                                }
+                              ]
+                            },
+                            "radius" : {
+                              "type" : [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "title" : {
+                              "type" : [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required" : [
+                            "kind"
+                          ],
+                          "type" : "object"
+                        },
+                        "type" : "array"
+                      },
+                      {
+                        "type" : "null"
+                      }
+                    ]
+                  },
+                  "done" : {
+                    "description" : "Mark done (true) or not done (false). Preferred way to handle finished tasks—preserves history unlike delete",
+                    "type" : [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "dueDate" : {
+                    "description" : "Due date in ISO 8601 format",
+                    "type" : [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "dueTimeZone" : {
+                    "description" : "IANA time-zone identifier for dueDate; omit for a floating date.",
+                    "type" : [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "id" : {
+                    "description" : "ID of existing reminder to update (omit to create new)",
+                    "type" : [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "listId" : {
+                    "description" : "Target list ID (for create or move)",
+                    "type" : [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "location" : {
+                    "description" : "Location text",
+                    "type" : [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "notes" : {
+                    "description" : "Notes",
+                    "type" : [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "priority" : {
+                    "oneOf" : [
+                      {
+                        "description" : "Priority: none, low, medium, high",
+                        "enum" : [
+                          "none",
+                          "low",
+                          "medium",
+                          "high"
+                        ],
+                        "type" : "string"
+                      },
+                      {
+                        "type" : "null"
+                      }
+                    ]
+                  },
+                  "recurrence" : {
+                    "description" : "Recurrence rule in RRULE format (RFC 5545). Examples: \"FREQ=DAILY\", \"FREQ=WEEKLY;BYDAY=MO,WE,FR\", \"FREQ=MONTHLY;BYDAY=2TU;COUNT=10\". Set to null to remove existing recurrence.",
+                    "type" : [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "startDate" : {
+                    "description" : "Start date in ISO 8601 format. Set to null to remove existing start date.",
+                    "type" : [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "startTimeZone" : {
+                    "description" : "IANA time-zone identifier for startDate; omit for a floating date.",
+                    "type" : [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "title" : {
+                    "description" : "Title (required for create, optional for update)",
+                    "type" : [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "url" : {
+                    "description" : "URL to attach to the reminder",
+                    "type" : [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "type" : "object"
+              },
+              "type" : "array"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        }
+      },
+      "type" : "object"
+    },
+    "name" : "write_reminders",
+    "outputSchema" : {
+      "properties" : {
+        "created" : {
+          "items" : {
+            "properties" : {
+              "alarms" : {
+                "oneOf" : [
+                  {
+                    "items" : {
+                      "properties" : {
+                        "absoluteDate" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "kind" : {
+                          "type" : "string"
+                        },
+                        "latitude" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "longitude" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "minutesBefore" : {
+                          "type" : [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "proximity" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "radius" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "title" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required" : [
+                        "kind"
+                      ],
+                      "type" : "object"
+                    },
+                    "type" : "array"
+                  },
+                  {
+                    "type" : "null"
+                  }
+                ]
+              },
+              "done" : {
+                "type" : "boolean"
+              },
+              "doneDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "dueDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "dueTimeZone" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "id" : {
+                "type" : "string"
+              },
+              "isAllDay" : {
+                "type" : "boolean"
+              },
+              "isStartAllDay" : {
+                "type" : "boolean"
+              },
+              "listId" : {
+                "type" : "string"
+              },
+              "listName" : {
+                "type" : "string"
+              },
+              "location" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "notes" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "priority" : {
+                "type" : "string"
+              },
+              "recurrence" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "startDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "startTimeZone" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "title" : {
+                "type" : "string"
+              },
+              "url" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required" : [
+              "id",
+              "title",
+              "done",
+              "priority",
+              "isAllDay",
+              "listId",
+              "listName",
+              "isStartAllDay"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        },
+        "deleted" : {
+          "items" : {
+            "properties" : {
+              "alarms" : {
+                "oneOf" : [
+                  {
+                    "items" : {
+                      "properties" : {
+                        "absoluteDate" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "kind" : {
+                          "type" : "string"
+                        },
+                        "latitude" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "longitude" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "minutesBefore" : {
+                          "type" : [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "proximity" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "radius" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "title" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required" : [
+                        "kind"
+                      ],
+                      "type" : "object"
+                    },
+                    "type" : "array"
+                  },
+                  {
+                    "type" : "null"
+                  }
+                ]
+              },
+              "done" : {
+                "type" : "boolean"
+              },
+              "doneDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "dueDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "dueTimeZone" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "id" : {
+                "type" : "string"
+              },
+              "isAllDay" : {
+                "type" : "boolean"
+              },
+              "isStartAllDay" : {
+                "type" : "boolean"
+              },
+              "listId" : {
+                "type" : "string"
+              },
+              "listName" : {
+                "type" : "string"
+              },
+              "location" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "notes" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "priority" : {
+                "type" : "string"
+              },
+              "recurrence" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "startDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "startTimeZone" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "title" : {
+                "type" : "string"
+              },
+              "url" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required" : [
+              "id",
+              "title",
+              "done",
+              "priority",
+              "isAllDay",
+              "listId",
+              "listName",
+              "isStartAllDay"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        },
+        "failures" : {
+          "items" : {
+            "properties" : {
+              "error" : {
+                "type" : "string"
+              },
+              "id" : {
+                "type" : "string"
+              }
+            },
+            "required" : [
+              "id",
+              "error"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        },
+        "updated" : {
+          "items" : {
+            "properties" : {
+              "alarms" : {
+                "oneOf" : [
+                  {
+                    "items" : {
+                      "properties" : {
+                        "absoluteDate" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "kind" : {
+                          "type" : "string"
+                        },
+                        "latitude" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "longitude" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "minutesBefore" : {
+                          "type" : [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "proximity" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "radius" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "title" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required" : [
+                        "kind"
+                      ],
+                      "type" : "object"
+                    },
+                    "type" : "array"
+                  },
+                  {
+                    "type" : "null"
+                  }
+                ]
+              },
+              "done" : {
+                "type" : "boolean"
+              },
+              "doneDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "dueDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "dueTimeZone" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "id" : {
+                "type" : "string"
+              },
+              "isAllDay" : {
+                "type" : "boolean"
+              },
+              "isStartAllDay" : {
+                "type" : "boolean"
+              },
+              "listId" : {
+                "type" : "string"
+              },
+              "listName" : {
+                "type" : "string"
+              },
+              "location" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "notes" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "priority" : {
+                "type" : "string"
+              },
+              "recurrence" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "startDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "startTimeZone" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "title" : {
+                "type" : "string"
+              },
+              "url" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required" : [
+              "id",
+              "title",
+              "done",
+              "priority",
+              "isAllDay",
+              "listId",
+              "listName",
+              "isStartAllDay"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        }
+      },
+      "required" : [
+        "deleted",
+        "created",
+        "updated",
+        "failures"
+      ],
+      "type" : "object"
+    },
+    "title" : "Write Reminders"
+  },
+  {
+    "annotations" : {
+      "idempotentHint" : true,
+      "openWorldHint" : false,
+      "readOnlyHint" : true
+    },
+    "description" : "Get all reminder lists",
+    "inputSchema" : {
+      "type" : "object"
+    },
+    "name" : "get_reminder_lists",
+    "outputSchema" : {
+      "properties" : {
+        "lists" : {
+          "items" : {
+            "properties" : {
+              "color" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "id" : {
+                "type" : "string"
+              },
+              "isImmutable" : {
+                "type" : "boolean"
+              },
+              "isSubscribed" : {
+                "type" : "boolean"
+              },
+              "sourceTitle" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "title" : {
+                "type" : "string"
+              }
+            },
+            "required" : [
+              "id",
+              "title",
+              "isSubscribed",
+              "isImmutable"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        }
+      },
+      "required" : [
+        "lists"
+      ],
+      "type" : "object"
+    },
+    "title" : "Get Reminder Lists"
+  },
+  {
+    "annotations" : {
+      "destructiveHint" : true,
+      "idempotentHint" : false,
+      "openWorldHint" : false
+    },
+    "description" : "Create or delete reminder lists. Use action='create' with title (and optional color), or action='delete' with id.",
+    "inputSchema" : {
+      "properties" : {
+        "action" : {
+          "description" : "Action to perform: \"create\" or \"delete\"",
+          "enum" : [
+            "create",
+            "delete"
+          ],
+          "type" : "string"
+        },
+        "color" : {
+          "description" : "Hex color for create action (e.g., \"#FF5733\")",
+          "type" : [
+            "string",
+            "null"
+          ]
+        },
+        "id" : {
+          "description" : "List ID for delete action",
+          "type" : [
+            "string",
+            "null"
+          ]
+        },
+        "title" : {
+          "description" : "Title for create action",
+          "type" : [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required" : [
+        "action"
+      ],
+      "type" : "object"
+    },
+    "name" : "manage_reminder_list",
+    "outputSchema" : {
+      "properties" : {
+        "action" : {
+          "type" : "string"
+        },
+        "id" : {
+          "type" : "string"
+        },
+        "list" : {
+          "oneOf" : [
+            {
+              "properties" : {
+                "color" : {
+                  "type" : [
+                    "string",
+                    "null"
+                  ]
+                },
+                "id" : {
+                  "type" : "string"
+                },
+                "isImmutable" : {
+                  "type" : "boolean"
+                },
+                "isSubscribed" : {
+                  "type" : "boolean"
+                },
+                "sourceTitle" : {
+                  "type" : [
+                    "string",
+                    "null"
+                  ]
+                },
+                "title" : {
+                  "type" : "string"
+                }
+              },
+              "required" : [
+                "id",
+                "title",
+                "isSubscribed",
+                "isImmutable"
+              ],
+              "type" : "object"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        }
+      },
+      "required" : [
+        "action",
+        "id"
+      ],
+      "type" : "object"
+    },
+    "title" : "Manage Reminder List"
+  },
+  {
+    "annotations" : {
+      "idempotentHint" : true,
+      "openWorldHint" : false,
+      "readOnlyHint" : true
+    },
+    "description" : "Get a concise overview: current date/time with timezone, scheduled vs unscheduled breakdown (with overdue/today/upcoming counts), all lists with counts, high-priority unscheduled items needing attention, overdue and today's reminders with details, and upcoming week summary",
+    "inputSchema" : {
+      "type" : "object"
+    },
+    "name" : "overview",
+    "outputSchema" : {
+      "properties" : {
+        "attentionCount" : {
+          "type" : "integer"
+        },
+        "incompleteCount" : {
+          "type" : "integer"
+        },
+        "listCount" : {
+          "type" : "integer"
+        },
+        "overdueCount" : {
+          "type" : "integer"
+        },
+        "todayCount" : {
+          "type" : "integer"
+        },
+        "upcomingCount" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "listCount",
+        "incompleteCount",
+        "overdueCount",
+        "todayCount",
+        "upcomingCount",
+        "attentionCount"
+      ],
+      "type" : "object"
+    },
+    "title" : "Overview"
+  }
+]

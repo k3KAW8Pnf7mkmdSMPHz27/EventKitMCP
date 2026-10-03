@@ -85,26 +85,34 @@ struct ToolSchemaContractTests {
         #expect(exposed.isDisjoint(with: ToolRegistry.mutatingTools))
     }
 
-    @Test("Generated input schemas expose enum and expanded reminder fields")
-    func inputContracts() throws {
+    @Test("Tool contract matches the checked-in snapshot")
+    func toolContractMatchesSnapshot() throws {
         let encoder = JSONEncoder()
-        let tools = ToolRegistry.allTools()
-        let query = try #require(tools.first { $0.name == "query_reminders" })
-        let write = try #require(tools.first { $0.name == "write_reminders" })
-        let manage = try #require(tools.first { $0.name == "manage_reminder_list" })
-        let queryJSON = String(decoding: try encoder.encode(query.inputSchema), as: UTF8.self)
-        let writeJSON = String(decoding: try encoder.encode(write.inputSchema), as: UTF8.self)
-        let manageJSON = String(decoding: try encoder.encode(manage.inputSchema), as: UTF8.self)
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted, .withoutEscapingSlashes]
+        let actual = String(decoding: try encoder.encode(ToolRegistry.allTools()), as: UTF8.self) + "\n"
+        let snapshot = URL(filePath: #filePath)
+            .deletingLastPathComponent()
+            .appending(path: "Contract/tool-contract.json")
 
-        for value in ["all", "overdue", "today", "upcoming", "limit", "offset"] {
-            #expect(queryJSON.contains(value))
+        if ProcessInfo.processInfo.environment["UPDATE_TOOL_CONTRACT"] == "1" {
+            try actual.write(to: snapshot, atomically: true, encoding: .utf8)
+            return
         }
-        for field in ["location", "url", "startDate", "startTimeZone", "dueTimeZone", "alarms"] {
-            #expect(writeJSON.contains(field))
-        }
-        for value in ["none", "low", "medium", "high"] { #expect(writeJSON.contains(value)) }
-        #expect(manageJSON.contains("create"))
-        #expect(manageJSON.contains("delete"))
+
+        let expected = try String(contentsOf: snapshot, encoding: .utf8)
+        guard actual != expected else { return }
+        let actualLines = actual.split(separator: "\n", omittingEmptySubsequences: false)
+        let expectedLines = expected.split(separator: "\n", omittingEmptySubsequences: false)
+        let line = zip(actualLines, expectedLines).enumerated().first { $1.0 != $1.1 }?.offset
+            ?? min(actualLines.count, expectedLines.count)
+        let was = line < expectedLines.count ? String(expectedLines[line]) : "<end of file>"
+        let now = line < actualLines.count ? String(actualLines[line]) : "<end of file>"
+        Issue.record("""
+            Tool contract changed at tool-contract.json:\(line + 1)
+              snapshot: \(was)
+              current:  \(now)
+            Rerun with UPDATE_TOOL_CONTRACT=1 and review the diff; it decides the PR title.
+            """)
     }
 
     @Test("Representative inputs validate against their advertised schemas")

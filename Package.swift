@@ -72,7 +72,8 @@ let package = Package(
                 .product(name: "MCP", package: "swift-sdk"),
                 .product(name: "JSONSchema", package: "swift-json-schema")
             ],
-            path: "Tests/EventKitMCPTests"
+            path: "Tests/EventKitMCPTests",
+            exclude: ["Contract"]
         )
     ],
     swiftLanguageModes: [.v6]
