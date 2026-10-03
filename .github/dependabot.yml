@@ -14,10 +14,9 @@ updates:
       prefix: fix
       include: scope
     groups:
-      apple-swift:
+      swift:
         patterns:
-          - github.com/apple/swift-log
-          - github.com/apple/swift-argument-parser
+          - "*"
         update-types:
           - minor
           - patch
