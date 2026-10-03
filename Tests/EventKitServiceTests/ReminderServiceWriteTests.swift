@@ -249,6 +249,18 @@ struct ReminderServiceWriteTests {
         #expect(reminder.completionDate == nil)
     }
 
+    @Test("Marking a done reminder done again keeps its completion date")
+    func repeatedDoneKeepsCompletionDate() async throws {
+        let f = Self.fixture()
+        let reminder = try f.reminder(f.existingId)
+        reminder.isCompleted = true
+        reminder.completionDate = Self.instant
+
+        _ = try await f.service.updateReminder(UpdateReminderRequest(id: f.existingId, done: true))
+        #expect(reminder.isCompleted)
+        #expect(reminder.completionDate == Self.instant)
+    }
+
     @Test("Update applies the start date before validating relative alarms")
     func startDateBeforeAlarms() async throws {
         let f = Self.fixture()

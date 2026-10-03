@@ -89,11 +89,9 @@ extension ReminderService {
             reminder.title = title
         }
         request.notes.apply { reminder.notes = $0 }
-        if let done = request.done {
+        // Setting isCompleted to true restamps completionDate, so only write a change.
+        if let done = request.done, done != reminder.isCompleted {
             reminder.isCompleted = done
-            if done && reminder.completionDate == nil {
-                reminder.completionDate = Date()
-            }
         }
         try request.dueDate.apply { reminder.dueDateComponents = try $0.map(EventKitMapping.dateComponents) }
         try request.startDate.apply { reminder.startDateComponents = try $0.map(EventKitMapping.dateComponents) }
