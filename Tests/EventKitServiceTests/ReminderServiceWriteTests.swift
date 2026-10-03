@@ -234,7 +234,7 @@ struct ReminderServiceWriteTests {
     }
 
     // EventKit stamps the completion date, in whole seconds, every time the flag is set,
-    // even on a reminder already done. So a second `done: true` moves it.
+    // even on a reminder already done, so the service writes the flag only on a change.
     @Test("Completing stamps a completion date and reopening clears it")
     func completionDate() async throws {
         let f = Self.fixture()

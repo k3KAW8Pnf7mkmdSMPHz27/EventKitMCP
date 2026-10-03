@@ -180,15 +180,19 @@ func parseAlarmsField(_ itemObj: [String: Value]) throws -> ReminderFieldUpdate<
         guard let array = value.arrayValue else {
             throw ParseError.invalidAlarms("expected an array or null")
         }
-        // EventKit keeps one zone per reminder and the start date's wins, so wall-clock
-        // absolute alarms anchor to the start zone, else the due zone.
-        let zone = try (parseTimeZone(itemObj["startTimeZone"]) ?? parseTimeZone(itemObj["dueTimeZone"]))
-            .flatMap(TimeZone.init(identifier:))
-        return try array.enumerated().map { index, element in try parseAlarm(element, at: index, in: zone) }
+        // Start zone first, as EventKit gives a reminder its start date's zone. Resolved
+        // only for an absolute alarm, so other alarms never trip over an unused zone key.
+        let zone = {
+            try (parseTimeZone(itemObj["startTimeZone"]) ?? parseTimeZone(itemObj["dueTimeZone"]))
+                .flatMap(TimeZone.init(identifier:))
+        }
+        return try array.enumerated().map { index, element in try parseAlarm(element, at: index, zone: zone) }
     }
 }
 
-private func parseAlarm(_ element: Value, at index: Int, in timeZone: TimeZone?) throws -> ReminderAlarmModel {
+private func parseAlarm(
+    _ element: Value, at index: Int, zone: () throws -> TimeZone?
+) throws -> ReminderAlarmModel {
     guard let object = element.objectValue, let kind = object["kind"]?.stringValue else {
         throw ParseError.invalidAlarms("element \(index) must be an alarm object with a kind")
     }
@@ -199,7 +203,7 @@ private func parseAlarm(_ element: Value, at index: Int, in timeZone: TimeZone?)
         }
         return .relative(minutesBefore: minutes)
     case .absolute:
-        guard let date = parseDateWithTimeInfo(object["absoluteDate"]?.stringValue, in: timeZone)?.date else {
+        guard let date = parseDateWithTimeInfo(object["absoluteDate"]?.stringValue, in: try zone())?.date else {
             throw ParseError.invalidAlarms("absolute element \(index) needs a valid absoluteDate")
         }
         return .absolute(date)

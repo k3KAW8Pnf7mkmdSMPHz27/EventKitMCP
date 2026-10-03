@@ -281,6 +281,18 @@ struct WriteRemindersHandlerTests {
         #expect(service.mockReminders.isEmpty)
     }
 
+    @Test("A non-object upsert element fails that item and names what was expected")
+    func nonObjectUpsertElement() async {
+        let service = MockReminderService()
+        let result = await callTool(
+            "write_reminders",
+            arguments: ["upsert": .array([.int(5), .object(["title": .string("Kept")])])],
+            reminderService: service
+        )
+        result.expectText(containing: "Created 1", "upsert[0]", "Invalid item format: expected an object")
+        #expect(service.createRequests.map(\.title) == ["Kept"])
+    }
+
     @Test("Delete multiple reminders returns full details")
     func testDeleteMultipleReminders() async throws {
         let service = MockReminderService()

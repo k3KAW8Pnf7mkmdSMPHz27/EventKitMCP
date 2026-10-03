@@ -224,6 +224,11 @@ struct ToolInputParsingTests {
         expectParseError("Unknown time zone: 'Mars/Base'") {
             _ = try parseAlarmsField(["alarms": alarm, "startTimeZone": .string("Mars/Base")])
         }
+        let relative: Value = .array([.object(["kind": .string("relative"), "minutesBefore": .int(5)])])
+        #expect(
+            try parseAlarmsField(["alarms": relative, "dueTimeZone": .string("Mars/Base")])
+                == .set([.relative(minutesBefore: 5)]),
+            "A zone only an absolute alarm would use is not read for other kinds")
     }
 
     @Test("Numeric query parameters take JSON integers within their bounds")

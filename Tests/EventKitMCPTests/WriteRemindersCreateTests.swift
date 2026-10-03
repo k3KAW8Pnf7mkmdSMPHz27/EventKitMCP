@@ -169,6 +169,7 @@ struct WriteRemindersCreateTests {
             ("notes", .int(1), "Invalid notes: expected a string or null"),
             ("location", .bool(true), "Invalid location: expected a string or null"),
             ("dueDate", .int(5), "Invalid date format: '(non-string value)'"),
+            ("startDate", .int(5), "Invalid date format: '(non-string value)'"),
             ("url", .int(5), "Invalid URL: '(non-string value)'")
         ]
         for (key, value, message) in fields {
@@ -199,5 +200,15 @@ struct WriteRemindersCreateTests {
         #expect(request.dueTimeZone == "Asia/Tokyo")
         #expect(request.isAllDay)
         #expect(request.startDate == nil && request.startTimeZone == nil)
+    }
+
+    @Test("Create reads a time-zone key only with its date, like update")
+    func createIgnoresZoneWithoutDate() async throws {
+        let service = MockReminderService()
+        let result = await writeReminders(
+            upsert: [["title": .string("Zoneless"), "dueTimeZone": .string("Mars/Base")]], service: service)
+        result.expectText(containing: "Created 1")
+        let request = try #require(service.createRequests.last)
+        #expect(request.dueDate == nil && request.dueTimeZone == nil)
     }
 }

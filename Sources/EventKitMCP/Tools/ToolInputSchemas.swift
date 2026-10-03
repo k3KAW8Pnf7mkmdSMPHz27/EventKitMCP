@@ -103,7 +103,7 @@ struct ReminderAlarmInput {
     var kind: ReminderAlarmKindInput
     /// Non-negative minutes before startDate for a relative alarm.
     var minutesBefore: Int?
-    /// ISO 8601 timestamp for an absolute alarm.
+    /// ISO 8601 timestamp for an absolute alarm. A time without an offset is read in startTimeZone, else dueTimeZone.
     var absoluteDate: String?
     /// enter or leave for a location alarm.
     var proximity: ReminderAlarmProximityInput?

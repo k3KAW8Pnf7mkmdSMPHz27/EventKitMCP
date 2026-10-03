@@ -303,7 +303,7 @@
                         "items" : {
                           "properties" : {
                             "absoluteDate" : {
-                              "description" : "ISO 8601 timestamp for an absolute alarm.",
+                              "description" : "ISO 8601 timestamp for an absolute alarm. A time without an offset is read in startTimeZone, else dueTimeZone.",
                               "type" : [
                                 "string",
                                 "null"
