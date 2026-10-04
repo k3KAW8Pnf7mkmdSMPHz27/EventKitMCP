@@ -9,37 +9,9 @@ import Testing
 /// access, so this runs in CI.
 @Suite("Allowlist against the reminder store")
 struct AllowlistReminderStoreTests {
-    /// Serves fixed calendars and records the calendar count behind every predicate it builds.
-    private final class StubStore: ReminderStore, @unchecked Sendable {
-        private let lock = NSLock()
-        private let calendars: [EKCalendar]
-        private var counts: [Int?] = []
-
-        init(calendars: [EKCalendar]) { self.calendars = calendars }
-
-        /// One entry per predicate built; `nil` means EventKit's "all calendars".
-        var predicateCalendarCounts: [Int?] { lock.withLock { counts } }
-
-        func reminderCalendars() -> [EKCalendar] { calendars }
-        func predicateForReminders(in calendars: [EKCalendar]?) -> NSPredicate {
-            record(calendars); return NSPredicate(value: true)
-        }
-        func predicateForIncompleteReminders(
-            withDueDateStarting: Date?, ending: Date?, calendars: [EKCalendar]?
-        ) -> NSPredicate {
-            record(calendars); return NSPredicate(value: true)
-        }
-        func fetchReminders(matching: NSPredicate, completion: @escaping ([EKReminder]?) -> Void) -> Any {
-            completion([]); return NSObject()
-        }
-        func cancelFetchRequest(_: Any) {}
-
-        private func record(_ calendars: [EKCalendar]?) { lock.withLock { counts.append(calendars?.count) } }
-    }
-
     private struct Fixture {
         let service: ReminderService
-        let store: StubStore
+        let store: StubReminderStore
         let ids: [String]
     }
 
@@ -55,7 +27,7 @@ struct AllowlistReminderStoreTests {
             return calendar
         }
         let ids = calendars.map(\.calendarIdentifier)
-        let store = StubStore(calendars: calendars)
+        let store = StubReminderStore(calendars: calendars)
         let service = ReminderService(
             eventStore: eventStore,
             reminderStore: store,
@@ -124,5 +96,23 @@ struct AllowlistReminderStoreTests {
         #expect(try await restricted.service.getReminders(listId: nil, includeDone: true).isEmpty)
         #expect(restricted.store.predicateCalendarCounts.isEmpty)
         #expect(await restricted.service.validateAllowedLists().isFatal)
+    }
+
+    @Test("A list query checks the allowlist before looking the list up")
+    func listQueryPrecedence() async throws {
+        let f = Self.fixture { ids in [ids[0], "gone-but-allowed"] }
+        await #expect(throws: ReminderServiceError.listAccessDenied(f.ids[1])) {
+            try await f.service.getReminders(listId: f.ids[1], includeDone: false)
+        }
+        await #expect(throws: ReminderServiceError.listAccessDenied("gone-and-hidden")) {
+            try await f.service.getReminders(listId: "gone-and-hidden", includeDone: false)
+        }
+        await #expect(throws: ReminderServiceError.listNotFound("gone-but-allowed")) {
+            try await f.service.getReminders(listId: "gone-but-allowed", includeDone: false)
+        }
+        #expect(f.store.predicateCalendarCounts.isEmpty)
+
+        _ = try await f.service.getReminders(listId: f.ids[0], includeDone: false)
+        #expect(f.store.predicateCalendarCounts == [1])
     }
 }

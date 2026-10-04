@@ -11,7 +11,7 @@ extension ReminderService {
             guard isListAllowed(id: listId) else {
                 throw ReminderServiceError.listAccessDenied(listId)
             }
-            guard let calendar = eventStore.calendar(withIdentifier: listId) else {
+            guard let calendar = reminderStore.calendar(withIdentifier: listId) else {
                 throw ReminderServiceError.listNotFound(listId)
             }
             calendars = [calendar]
@@ -32,7 +32,7 @@ extension ReminderService {
     }
 
     func getReminderImpl(id: String) async throws -> ReminderModel? {
-        guard let item = eventStore.calendarItem(withIdentifier: id) as? EKReminder else {
+        guard let item = reminderStore.calendarItem(withIdentifier: id) as? EKReminder else {
             return nil
         }
         // Report an out-of-allowlist reminder exactly as a missing one. Throwing here
@@ -54,13 +54,13 @@ extension ReminderService {
             guard isListAllowed(id: listId) else {
                 throw ReminderServiceError.listAccessDenied(listId)
             }
-            guard let calendar = eventStore.calendar(withIdentifier: listId) else {
+            guard let calendar = reminderStore.calendar(withIdentifier: listId) else {
                 throw ReminderServiceError.listNotFound(listId)
             }
             reminder.calendar = calendar
         } else {
             // Use default calendar, but verify it's allowed
-            guard let defaultCal = eventStore.defaultCalendarForNewReminders() else {
+            guard let defaultCal = reminderStore.defaultCalendarForNewReminders() else {
                 throw ReminderServiceError.noValidSource
             }
             guard isListAllowed(id: defaultCal.calendarIdentifier) else {
@@ -114,14 +114,14 @@ extension ReminderService {
             for alarm in try alarms.map(EventKitMapping.makeAlarm) { reminder.addAlarm(alarm) }
         }
 
-        try eventStore.save(reminder, commit: true)
+        try reminderStore.save(reminder, commit: true)
         logger.info("Created reminder", metadata: ["title": "\(request.title)"])
 
         return EventKitMapping.mapReminderToModel(reminder)
     }
 
     func updateReminderImpl(_ request: UpdateReminderRequest) async throws -> ReminderModel {
-        guard let reminder = eventStore.calendarItem(withIdentifier: request.id) as? EKReminder else {
+        guard let reminder = reminderStore.calendarItem(withIdentifier: request.id) as? EKReminder else {
             throw ReminderServiceError.reminderNotFound(request.id)
         }
 
@@ -185,7 +185,7 @@ extension ReminderService {
             guard isListAllowed(id: listId) else {
                 throw ReminderServiceError.listAccessDenied(listId)
             }
-            guard let targetCalendar = eventStore.calendar(withIdentifier: listId) else {
+            guard let targetCalendar = reminderStore.calendar(withIdentifier: listId) else {
                 throw ReminderServiceError.listNotFound(listId)
             }
             reminder.calendar = targetCalendar
@@ -231,7 +231,7 @@ extension ReminderService {
             for alarm in try alarms.map(EventKitMapping.makeAlarm) { reminder.addAlarm(alarm) }
         }
 
-        try eventStore.save(reminder, commit: true)
+        try reminderStore.save(reminder, commit: true)
         logger.info("Updated reminder", metadata: ["id": "\(request.id)"])
 
         return EventKitMapping.mapReminderToModel(reminder)
@@ -239,7 +239,7 @@ extension ReminderService {
 
     @discardableResult
     func deleteReminderImpl(id: String) async throws -> ReminderModel {
-        guard let reminder = eventStore.calendarItem(withIdentifier: id) as? EKReminder else {
+        guard let reminder = reminderStore.calendarItem(withIdentifier: id) as? EKReminder else {
             throw ReminderServiceError.reminderNotFound(id)
         }
 
@@ -250,7 +250,7 @@ extension ReminderService {
         // Capture reminder data before deletion
         let model = EventKitMapping.mapReminderToModel(reminder)
 
-        try eventStore.remove(reminder, commit: true)
+        try reminderStore.remove(reminder, commit: true)
         logger.info("Deleted reminder", metadata: ["id": "\(id)"])
 
         return model

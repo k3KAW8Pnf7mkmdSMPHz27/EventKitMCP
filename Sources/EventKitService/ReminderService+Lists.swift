@@ -13,7 +13,7 @@ extension ReminderService {
         guard isListAllowed(id: id) else {
             throw ReminderServiceError.listAccessDenied(id)
         }
-        guard let calendar = eventStore.calendar(withIdentifier: id) else {
+        guard let calendar = reminderStore.calendar(withIdentifier: id) else {
             return nil
         }
         return EventKitMapping.mapCalendarToList(calendar)
@@ -38,7 +38,7 @@ extension ReminderService {
             calendar.cgColor = EventKitMapping.colorFromHex(colorHex)
         }
 
-        try eventStore.saveCalendar(calendar, commit: true)
+        try reminderStore.saveCalendar(calendar, commit: true)
         logger.info("Created reminder list", metadata: ["title": "\(request.title)"])
 
         return EventKitMapping.mapCalendarToList(calendar)
@@ -48,26 +48,26 @@ extension ReminderService {
         guard isListAllowed(id: id) else {
             throw ReminderServiceError.listAccessDenied(id)
         }
-        guard let calendar = eventStore.calendar(withIdentifier: id) else {
+        guard let calendar = reminderStore.calendar(withIdentifier: id) else {
             throw ReminderServiceError.listNotFound(id)
         }
 
-        try eventStore.removeCalendar(calendar, commit: true)
+        try reminderStore.removeCalendar(calendar, commit: true)
         logger.info("Deleted reminder list", metadata: ["id": "\(id)"])
     }
 
     private func findDefaultSource() -> EKSource? {
         // Try to find the local source first
-        if let local = eventStore.sources.first(where: { $0.sourceType == .local }) {
+        if let local = reminderStore.sources.first(where: { $0.sourceType == .local }) {
             return local
         }
 
         // Fall back to iCloud
-        if let icloud = eventStore.sources.first(where: { $0.sourceType == .calDAV && $0.title == "iCloud" }) {
+        if let icloud = reminderStore.sources.first(where: { $0.sourceType == .calDAV && $0.title == "iCloud" }) {
             return icloud
         }
 
         // Use any available source
-        return eventStore.sources.first(where: { $0.sourceType != .birthdays })
+        return reminderStore.sources.first(where: { $0.sourceType != .birthdays })
     }
 }
