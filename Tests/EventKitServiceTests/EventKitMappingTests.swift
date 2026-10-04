@@ -16,22 +16,25 @@ struct EventKitMappingTests {
         local.timeZone = .current
         let localParts = local.dateComponents([.year, .month, .day, .hour, .minute], from: instant)
 
-        let floating = try EventKitMapping.dateComponents(from: instant, allDay: false, timeZoneIdentifier: nil)
+        let floating = try EventKitMapping.dateComponents(from: ReminderDateValue(date: instant, isAllDay: false))
         #expect(floating.timeZone == nil)
         #expect([floating.year, floating.month, floating.day] == [localParts.year, localParts.month, localParts.day])
         #expect([floating.hour, floating.minute] == [localParts.hour, localParts.minute])
 
-        let zoned = try EventKitMapping.dateComponents(from: instant, allDay: false, timeZoneIdentifier: "Asia/Tokyo")
+        let zoned = try EventKitMapping.dateComponents(
+            from: ReminderDateValue(date: instant, timeZoneIdentifier: "Asia/Tokyo", isAllDay: false))
         #expect(zoned.timeZone == tokyo)
         #expect([zoned.year, zoned.month, zoned.day, zoned.hour, zoned.minute] == [2026, 1, 6, 10, 30])
 
-        let allDay = try EventKitMapping.dateComponents(from: instant, allDay: true, timeZoneIdentifier: "Asia/Tokyo")
+        let allDay = try EventKitMapping.dateComponents(
+            from: ReminderDateValue(date: instant, timeZoneIdentifier: "Asia/Tokyo", isAllDay: true))
         #expect(allDay.timeZone == tokyo)
         #expect([allDay.year, allDay.month, allDay.day] == [2026, 1, 6])
         #expect(allDay.hour == nil && allDay.minute == nil)
 
         #expect(throws: ReminderServiceError.invalidTimeZone("Mars/Base")) {
-            try EventKitMapping.dateComponents(from: instant, allDay: false, timeZoneIdentifier: "Mars/Base")
+            try EventKitMapping.dateComponents(
+                from: ReminderDateValue(date: instant, timeZoneIdentifier: "Mars/Base", isAllDay: false))
         }
     }
 
@@ -59,23 +62,23 @@ struct EventKitMappingTests {
             .location(office, proximity: .none)
         ]
         for model in models {
-            let alarm = try EventKitMapping.makeAlarm(model)
+            let alarm = try #require(try EventKitMapping.makeAlarms([model], hasStartDate: true).first)
             #expect(EventKitMapping.mapAlarm(alarm) == model, "\(model)")
         }
         #expect(throws: ReminderServiceError.invalidAlarm) {
-            try EventKitMapping.makeAlarm(.relative(minutesBefore: -1))
+            try EventKitMapping.makeAlarms([.relative(minutesBefore: -1)], hasStartDate: true)
         }
     }
 
     @Test("Relative alarms need a start date and a non-negative offset")
     func alarmReferences() throws {
-        try EventKitMapping.validateAlarmReferences([.relative(minutesBefore: 5)], hasStartDate: true)
-        try EventKitMapping.validateAlarmReferences([.absolute(instant)], hasStartDate: false)
+        #expect(try EventKitMapping.makeAlarms([.relative(minutesBefore: 5)], hasStartDate: true).count == 1)
+        #expect(try EventKitMapping.makeAlarms([.absolute(instant)], hasStartDate: false).count == 1)
         #expect(throws: ReminderServiceError.relativeAlarmRequiresStartDate) {
-            try EventKitMapping.validateAlarmReferences([.relative(minutesBefore: 5)], hasStartDate: false)
+            try EventKitMapping.makeAlarms([.relative(minutesBefore: 5)], hasStartDate: false)
         }
         #expect(throws: ReminderServiceError.invalidAlarm) {
-            try EventKitMapping.validateAlarmReferences([.relative(minutesBefore: -5)], hasStartDate: true)
+            try EventKitMapping.makeAlarms([.relative(minutesBefore: -5)], hasStartDate: true)
         }
     }
 

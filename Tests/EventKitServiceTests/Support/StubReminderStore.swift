@@ -38,7 +38,7 @@ final class StubReminderStore: ReminderStore, @unchecked Sendable {
         record(calendars)
         return NSPredicate(value: true)
     }
-    func fetchReminders(matching: NSPredicate, completion: @escaping ([EKReminder]?) -> Void) -> Any {
+    func fetchReminderItems(matching: NSPredicate, completion: @escaping @Sendable ([EKReminder]?) -> Void) -> Any {
         completion([])
         return NSObject()
     }

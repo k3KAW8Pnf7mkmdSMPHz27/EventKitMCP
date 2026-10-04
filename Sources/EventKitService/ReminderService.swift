@@ -144,6 +144,29 @@ public actor ReminderService: ReminderServiceProtocol {
         listAccess.isAllowed(id)
     }
 
+    /// The list with this ID. The allowlist is checked first, so a hidden ID never reveals whether it exists.
+    func calendarInAllowlist(id: String) throws -> EKCalendar {
+        guard isListAllowed(id: id) else {
+            throw ReminderServiceError.listAccessDenied(id)
+        }
+        guard let calendar = reminderStore.calendar(withIdentifier: id) else {
+            throw ReminderServiceError.listNotFound(id)
+        }
+        return calendar
+    }
+
+    /// The reminder with this ID, refused as `reminderAccessDenied` when its list is hidden.
+    func reminderInAllowlist(id: String) throws -> EKReminder {
+        guard let reminder = reminderStore.calendarItem(withIdentifier: id) as? EKReminder else {
+            throw ReminderServiceError.reminderNotFound(id)
+        }
+        // Verify current list is allowed, without disclosing which list holds it.
+        guard isListAllowed(id: reminder.calendar.calendarIdentifier) else {
+            throw ReminderServiceError.reminderAccessDenied(id)
+        }
+        return reminder
+    }
+
     private func allowedCalendars() -> [EKCalendar] {
         let all = reminderStore.reminderCalendars()
         guard listAccess.isRestricted else { return all }
@@ -193,7 +216,7 @@ public actor ReminderService: ReminderServiceProtocol {
                     timeoutTask: nil
                 )
 
-                let request = reminderStore.fetchReminders(matching: predicate) { [weak self] reminders in
+                let request = reminderStore.fetchReminderItems(matching: predicate) { [weak self] reminders in
                     let models = (reminders ?? []).map(EventKitMapping.mapReminderToModel)
                     guard let service = self else { return }
                     Task { await service.finishReminderFetch(id: id, result: .success(models)) }

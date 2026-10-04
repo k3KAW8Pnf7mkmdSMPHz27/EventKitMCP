@@ -172,6 +172,17 @@ public enum ReminderFieldUpdate<Value: Sendable>: Sendable {
 
 extension ReminderFieldUpdate: Equatable where Value: Equatable {}
 
+extension ReminderFieldUpdate {
+    /// Calls `assign` with the new value, or with nil to clear; does nothing when unchanged.
+    func apply(_ assign: (Value?) throws -> Void) rethrows {
+        switch self {
+        case .unchanged: break
+        case .clear: try assign(nil)
+        case .set(let value): try assign(value)
+        }
+    }
+}
+
 /// A date and its EventKit component metadata, updated as one coherent value.
 public struct ReminderDateValue: Sendable, Equatable {
     public let date: Date
