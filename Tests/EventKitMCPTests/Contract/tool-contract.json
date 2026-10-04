@@ -1183,6 +1183,171 @@
     "name" : "overview",
     "outputSchema" : {
       "properties" : {
+        "attention" : {
+          "description" : "High or medium priority reminders without a due date.",
+          "items" : {
+            "properties" : {
+              "alarms" : {
+                "oneOf" : [
+                  {
+                    "items" : {
+                      "properties" : {
+                        "absoluteDate" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "kind" : {
+                          "enum" : [
+                            "relative",
+                            "absolute",
+                            "location"
+                          ],
+                          "type" : "string"
+                        },
+                        "latitude" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "longitude" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "minutesBefore" : {
+                          "type" : [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "proximity" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "radius" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "title" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required" : [
+                        "kind"
+                      ],
+                      "type" : "object"
+                    },
+                    "type" : "array"
+                  },
+                  {
+                    "type" : "null"
+                  }
+                ]
+              },
+              "done" : {
+                "type" : "boolean"
+              },
+              "doneDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "dueDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "dueTimeZone" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "id" : {
+                "type" : "string"
+              },
+              "isAllDay" : {
+                "type" : "boolean"
+              },
+              "isStartAllDay" : {
+                "type" : "boolean"
+              },
+              "listId" : {
+                "type" : "string"
+              },
+              "listName" : {
+                "type" : "string"
+              },
+              "notes" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "priority" : {
+                "enum" : [
+                  "none",
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "type" : "string"
+              },
+              "recurrence" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "startDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "startTimeZone" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "title" : {
+                "type" : "string"
+              },
+              "url" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required" : [
+              "id",
+              "title",
+              "done",
+              "priority",
+              "isAllDay",
+              "listId",
+              "listName",
+              "isStartAllDay"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        },
         "attentionCount" : {
           "type" : "integer"
         },
@@ -1192,11 +1357,396 @@
         "listCount" : {
           "type" : "integer"
         },
+        "lists" : {
+          "description" : "Lists with incomplete reminders.",
+          "items" : {
+            "properties" : {
+              "highPriorityCount" : {
+                "type" : "integer"
+              },
+              "id" : {
+                "type" : "string"
+              },
+              "incompleteCount" : {
+                "type" : "integer"
+              },
+              "mediumPriorityCount" : {
+                "type" : "integer"
+              },
+              "overdueCount" : {
+                "type" : "integer"
+              },
+              "title" : {
+                "type" : "string"
+              }
+            },
+            "required" : [
+              "id",
+              "title",
+              "incompleteCount",
+              "overdueCount",
+              "highPriorityCount",
+              "mediumPriorityCount"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        },
+        "overdue" : {
+          "description" : "The first 10 overdue reminders, highest priority first; overdueCount is the total.",
+          "items" : {
+            "properties" : {
+              "alarms" : {
+                "oneOf" : [
+                  {
+                    "items" : {
+                      "properties" : {
+                        "absoluteDate" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "kind" : {
+                          "enum" : [
+                            "relative",
+                            "absolute",
+                            "location"
+                          ],
+                          "type" : "string"
+                        },
+                        "latitude" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "longitude" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "minutesBefore" : {
+                          "type" : [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "proximity" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "radius" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "title" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required" : [
+                        "kind"
+                      ],
+                      "type" : "object"
+                    },
+                    "type" : "array"
+                  },
+                  {
+                    "type" : "null"
+                  }
+                ]
+              },
+              "done" : {
+                "type" : "boolean"
+              },
+              "doneDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "dueDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "dueTimeZone" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "id" : {
+                "type" : "string"
+              },
+              "isAllDay" : {
+                "type" : "boolean"
+              },
+              "isStartAllDay" : {
+                "type" : "boolean"
+              },
+              "listId" : {
+                "type" : "string"
+              },
+              "listName" : {
+                "type" : "string"
+              },
+              "notes" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "priority" : {
+                "enum" : [
+                  "none",
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "type" : "string"
+              },
+              "recurrence" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "startDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "startTimeZone" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "title" : {
+                "type" : "string"
+              },
+              "url" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required" : [
+              "id",
+              "title",
+              "done",
+              "priority",
+              "isAllDay",
+              "listId",
+              "listName",
+              "isStartAllDay"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        },
         "overdueCount" : {
           "type" : "integer"
         },
+        "today" : {
+          "description" : "Reminders due today, earliest first.",
+          "items" : {
+            "properties" : {
+              "alarms" : {
+                "oneOf" : [
+                  {
+                    "items" : {
+                      "properties" : {
+                        "absoluteDate" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "kind" : {
+                          "enum" : [
+                            "relative",
+                            "absolute",
+                            "location"
+                          ],
+                          "type" : "string"
+                        },
+                        "latitude" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "longitude" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "minutesBefore" : {
+                          "type" : [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "proximity" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "radius" : {
+                          "type" : [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "title" : {
+                          "type" : [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required" : [
+                        "kind"
+                      ],
+                      "type" : "object"
+                    },
+                    "type" : "array"
+                  },
+                  {
+                    "type" : "null"
+                  }
+                ]
+              },
+              "done" : {
+                "type" : "boolean"
+              },
+              "doneDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "dueDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "dueTimeZone" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "id" : {
+                "type" : "string"
+              },
+              "isAllDay" : {
+                "type" : "boolean"
+              },
+              "isStartAllDay" : {
+                "type" : "boolean"
+              },
+              "listId" : {
+                "type" : "string"
+              },
+              "listName" : {
+                "type" : "string"
+              },
+              "notes" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "priority" : {
+                "enum" : [
+                  "none",
+                  "low",
+                  "medium",
+                  "high"
+                ],
+                "type" : "string"
+              },
+              "recurrence" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "startDate" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "startTimeZone" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              },
+              "title" : {
+                "type" : "string"
+              },
+              "url" : {
+                "type" : [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required" : [
+              "id",
+              "title",
+              "done",
+              "priority",
+              "isAllDay",
+              "listId",
+              "listName",
+              "isStartAllDay"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        },
         "todayCount" : {
           "type" : "integer"
+        },
+        "upcomingByDay" : {
+          "description" : "Reminders due in the next 7 days, counted per day.",
+          "items" : {
+            "properties" : {
+              "count" : {
+                "type" : "integer"
+              },
+              "date" : {
+                "description" : "Calendar day in the server's time zone, as YYYY-MM-DD.",
+                "type" : "string"
+              }
+            },
+            "required" : [
+              "date",
+              "count"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
         },
         "upcomingCount" : {
           "type" : "integer"
@@ -1208,7 +1758,12 @@
         "overdueCount",
         "todayCount",
         "upcomingCount",
-        "attentionCount"
+        "attentionCount",
+        "lists",
+        "attention",
+        "overdue",
+        "today",
+        "upcomingByDay"
       ],
       "type" : "object"
     },

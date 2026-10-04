@@ -224,6 +224,23 @@ struct ManageReminderListOutput: Codable {
 }
 
 @Schemable
+struct ListStatsOutput: Codable {
+    var id: String
+    var title: String
+    var incompleteCount: Int
+    var overdueCount: Int
+    var highPriorityCount: Int
+    var mediumPriorityCount: Int
+}
+
+@Schemable
+struct UpcomingDayOutput: Codable {
+    /// Calendar day in the server's time zone, as YYYY-MM-DD.
+    var date: String
+    var count: Int
+}
+
+@Schemable
 struct OverviewOutput: Codable {
     var listCount: Int
     var incompleteCount: Int
@@ -231,4 +248,14 @@ struct OverviewOutput: Codable {
     var todayCount: Int
     var upcomingCount: Int
     var attentionCount: Int
+    /// Lists with incomplete reminders.
+    var lists: [ListStatsOutput]
+    /// High or medium priority reminders without a due date.
+    var attention: [ReminderOutput]
+    /// The first 10 overdue reminders, highest priority first; overdueCount is the total.
+    var overdue: [ReminderOutput]
+    /// Reminders due today, earliest first.
+    var today: [ReminderOutput]
+    /// Reminders due in the next 7 days, counted per day.
+    var upcomingByDay: [UpcomingDayOutput]
 }
