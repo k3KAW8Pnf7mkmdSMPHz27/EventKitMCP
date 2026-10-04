@@ -125,6 +125,27 @@ struct ToolSchemaContractTests {
             """)
     }
 
+    @Test("README names every tool and every input property")
+    func readmeNamesEveryToolAndInputProperty() throws {
+        let readme = try String(
+            contentsOf: URL(filePath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appending(path: "README.md"),
+            encoding: .utf8
+        )
+        for tool in ToolRegistry.allTools() {
+            #expect(readme.contains("`\(tool.name)`"), "README does not name \(tool.name)")
+            for name in Self.propertyNames(tool.inputSchema).sorted() {
+                #expect(
+                    readme.contains("`\(name)`") || readme.contains("\"\(name)\""),
+                    "README does not name \(tool.name) input \(name)"
+                )
+            }
+        }
+    }
+
     @Test("Representative inputs validate against their advertised schemas")
     func representativeInputsValidate() throws {
         let tools = ToolRegistry.allTools()
@@ -205,6 +226,27 @@ struct ToolSchemaContractTests {
         ),
         ("overview", nil)
     ]
+
+    /// Every property name in a schema, including nested objects and array items.
+    private static func propertyNames(_ schema: Value) -> Set<String> {
+        guard case .object(let object) = schema else { return [] }
+        var names: Set<String> = []
+        if case .object(let properties)? = object["properties"] {
+            for (name, child) in properties {
+                names.insert(name)
+                names.formUnion(propertyNames(child))
+            }
+        }
+        for key in ["items", "additionalProperties"] {
+            if let child = object[key] { names.formUnion(propertyNames(child)) }
+        }
+        for key in ["anyOf", "oneOf", "allOf"] {
+            if case .array(let children)? = object[key] {
+                for child in children { names.formUnion(propertyNames(child)) }
+            }
+        }
+        return names
+    }
 
     private func validates(_ instance: Value, against schemaValue: Value) throws -> Bool {
         let encoder = JSONEncoder()
