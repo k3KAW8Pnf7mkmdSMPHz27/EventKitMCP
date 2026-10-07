@@ -132,7 +132,7 @@ private func formatReminder(_ reminder: ReminderModel) -> String {
         let alarmStrs = alarms.map { alarm -> String in
             switch alarm {
             case .relative(let minutes):
-                return minutes == 0 ? "at start" : "\(minutes) min before start"
+                return minutes == 0 ? "at due time" : "\(minutes) min before due"
             case .absolute(let date):
                 return "at \(formatDateTime(date))"
             case .location(let location, let proximity):

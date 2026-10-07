@@ -243,7 +243,7 @@ Alarms use one of these tagged object shapes:
 ```
 
 An `absoluteDate` without an offset is read in `startTimeZone`, else `dueTimeZone`, else
-the Mac's local time. Relative alarms count back from the start date.
+the Mac's local time. Relative alarms count back from the due date, so they need one.
 
 A location alarm is what Reminders.app shows as a reminder's location. Reminders keeps no
 separate location text, so there is no `location` field.

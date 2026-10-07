@@ -69,7 +69,7 @@ extension ReminderService {
             reminder.addRecurrenceRule(try RRuleParser.parse(rrule))
         }
         if let alarms = request.alarms {
-            let ekAlarms = try EventKitMapping.makeAlarms(alarms, hasStartDate: reminder.startDateComponents != nil)
+            let ekAlarms = try EventKitMapping.makeAlarms(alarms, hasDueDate: reminder.dueDateComponents != nil)
             for alarm in ekAlarms { reminder.addAlarm(alarm) }
         }
 
@@ -103,10 +103,10 @@ extension ReminderService {
             for rule in reminder.recurrenceRules ?? [] { reminder.removeRecurrenceRule(rule) }
             if let rrule { reminder.addRecurrenceRule(try RRuleParser.parse(rrule)) }
         }
-        // Alarms come last: relative ones need the start date this request may have just set.
+        // Alarms come last: relative ones need the due date this request may have just set.
         try request.alarms.apply { alarms in
             let ekAlarms = try alarms.map {
-                try EventKitMapping.makeAlarms($0, hasStartDate: reminder.startDateComponents != nil)
+                try EventKitMapping.makeAlarms($0, hasDueDate: reminder.dueDateComponents != nil)
             }
             for alarm in reminder.alarms ?? [] { reminder.removeAlarm(alarm) }
             for alarm in ekAlarms ?? [] { reminder.addAlarm(alarm) }

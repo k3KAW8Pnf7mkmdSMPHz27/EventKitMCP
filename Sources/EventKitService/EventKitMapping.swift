@@ -101,11 +101,12 @@ enum EventKitMapping {
         return url
     }
 
-    /// EventKit alarms for these models; relative ones need a start date and a non-negative offset.
-    static func makeAlarms(_ models: [ReminderAlarmModel], hasStartDate: Bool) throws -> [EKAlarm] {
+    /// EventKit alarms for these models; relative ones need a due date and a non-negative offset.
+    /// Reminders counts a relative alarm back from the due date, whatever the start date is.
+    static func makeAlarms(_ models: [ReminderAlarmModel], hasDueDate: Bool) throws -> [EKAlarm] {
         try models.map { model in
             if case .relative(let minutes) = model {
-                guard hasStartDate else { throw ReminderServiceError.relativeAlarmRequiresStartDate }
+                guard hasDueDate else { throw ReminderServiceError.relativeAlarmRequiresDueDate }
                 guard minutes >= 0 else { throw ReminderServiceError.invalidAlarm }
             }
             return makeAlarm(model)

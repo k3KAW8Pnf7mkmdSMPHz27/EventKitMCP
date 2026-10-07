@@ -21,7 +21,7 @@ public enum ReminderServiceError: Error, LocalizedError, Equatable {
     case invalidURL(String)
     case invalidTimeZone(String)
     case invalidAlarm
-    case relativeAlarmRequiresStartDate
+    case relativeAlarmRequiresDueDate
     case operationTimedOut
 
     public var errorDescription: String? {
@@ -46,8 +46,8 @@ public enum ReminderServiceError: Error, LocalizedError, Equatable {
             return "Unknown time zone: '\(identifier)'"
         case .invalidAlarm:
             return "Invalid alarm definition"
-        case .relativeAlarmRequiresStartDate:
-            return "Relative alarms require a start date"
+        case .relativeAlarmRequiresDueDate:
+            return "Relative alarms require a due date"
         case .operationTimedOut:
             return "The EventKit operation timed out"
         }

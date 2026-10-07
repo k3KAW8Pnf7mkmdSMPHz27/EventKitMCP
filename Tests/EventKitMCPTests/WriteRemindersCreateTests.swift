@@ -122,7 +122,7 @@ struct WriteRemindersCreateTests {
         ])
 
         result.expectText(
-            containing: "Created 1", "Alarms:", "at start", "15 min before start", "60 min before start"
+            containing: "Created 1", "Alarms:", "at due time", "15 min before due", "60 min before due"
         )
     }
 

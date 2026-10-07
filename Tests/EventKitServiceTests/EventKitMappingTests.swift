@@ -82,23 +82,23 @@ struct EventKitMappingTests {
             .location(office, proximity: .none)
         ]
         for model in models {
-            let alarm = try #require(try EventKitMapping.makeAlarms([model], hasStartDate: true).first)
+            let alarm = try #require(try EventKitMapping.makeAlarms([model], hasDueDate: true).first)
             #expect(EventKitMapping.mapAlarm(alarm) == model, "\(model)")
         }
         #expect(throws: ReminderServiceError.invalidAlarm) {
-            try EventKitMapping.makeAlarms([.relative(minutesBefore: -1)], hasStartDate: true)
+            try EventKitMapping.makeAlarms([.relative(minutesBefore: -1)], hasDueDate: true)
         }
     }
 
-    @Test("Relative alarms need a start date and a non-negative offset")
+    @Test("Relative alarms need a due date and a non-negative offset")
     func alarmReferences() throws {
-        #expect(try EventKitMapping.makeAlarms([.relative(minutesBefore: 5)], hasStartDate: true).count == 1)
-        #expect(try EventKitMapping.makeAlarms([.absolute(instant)], hasStartDate: false).count == 1)
-        #expect(throws: ReminderServiceError.relativeAlarmRequiresStartDate) {
-            try EventKitMapping.makeAlarms([.relative(minutesBefore: 5)], hasStartDate: false)
+        #expect(try EventKitMapping.makeAlarms([.relative(minutesBefore: 5)], hasDueDate: true).count == 1)
+        #expect(try EventKitMapping.makeAlarms([.absolute(instant)], hasDueDate: false).count == 1)
+        #expect(throws: ReminderServiceError.relativeAlarmRequiresDueDate) {
+            try EventKitMapping.makeAlarms([.relative(minutesBefore: 5)], hasDueDate: false)
         }
         #expect(throws: ReminderServiceError.invalidAlarm) {
-            try EventKitMapping.makeAlarms([.relative(minutesBefore: -5)], hasStartDate: true)
+            try EventKitMapping.makeAlarms([.relative(minutesBefore: -5)], hasDueDate: true)
         }
     }
 

@@ -170,14 +170,16 @@ struct ReminderServiceWriteTests {
         #expect(f.store.saved.isEmpty)
     }
 
-    @Test("Create refuses a relative alarm without a start date and saves nothing")
-    func createRelativeAlarmNeedsStart() async throws {
-        let f = Self.fixture()
-        await #expect(throws: ReminderServiceError.relativeAlarmRequiresStartDate) {
-            try await f.service.createReminder(
-                CreateReminderRequest(title: "x", alarms: [.relative(minutesBefore: 5)]))
+    @Test("Create refuses a relative alarm without a due date, even with a start date, and saves nothing")
+    func createRelativeAlarmNeedsDue() async throws {
+        for startDate in [nil, Self.instant] {
+            let f = Self.fixture()
+            await #expect(throws: ReminderServiceError.relativeAlarmRequiresDueDate) {
+                try await f.service.createReminder(
+                    CreateReminderRequest(title: "x", startDate: startDate, alarms: [.relative(minutesBefore: 5)]))
+            }
+            #expect(f.store.saved.isEmpty)
         }
-        #expect(f.store.saved.isEmpty)
     }
 
     // MARK: - Update
@@ -257,20 +259,20 @@ struct ReminderServiceWriteTests {
         #expect(reminder.completionDate == Self.instant)
     }
 
-    @Test("Update applies the start date before validating relative alarms")
-    func startDateBeforeAlarms() async throws {
+    @Test("Update applies the due date before validating relative alarms")
+    func dueDateBeforeAlarms() async throws {
         let f = Self.fixture()
         _ = try await f.service.updateReminder(
             UpdateReminderRequest(
                 id: f.existingId,
-                startDate: .set(ReminderDateValue(date: Self.instant, isAllDay: false)),
+                dueDate: .set(ReminderDateValue(date: Self.instant, isAllDay: false)),
                 alarms: .set([.relative(minutesBefore: 5)])
             ))
         #expect(try f.reminder(f.existingId).alarms?.count == 1)
 
-        await #expect(throws: ReminderServiceError.relativeAlarmRequiresStartDate) {
+        await #expect(throws: ReminderServiceError.relativeAlarmRequiresDueDate) {
             try await f.service.updateReminder(
-                UpdateReminderRequest(id: f.existingId, startDate: .clear, alarms: .set([.relative(minutesBefore: 5)])))
+                UpdateReminderRequest(id: f.existingId, dueDate: .clear, alarms: .set([.relative(minutesBefore: 5)])))
         }
         #expect(f.store.saved.count == 1)
     }

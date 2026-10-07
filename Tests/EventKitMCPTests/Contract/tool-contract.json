@@ -293,7 +293,7 @@
                   "alarms" : {
                     "oneOf" : [
                       {
-                        "description" : "Relative, absolute, or location alarms. A location alarm is what Reminders shows as the reminder's location. Relative alarms use the reminder start date. Set to null to remove all alarms.",
+                        "description" : "Relative, absolute, or location alarms. A location alarm is what Reminders shows as the reminder's location. Relative alarms count back from the due date. Set to null to remove all alarms.",
                         "items" : {
                           "properties" : {
                             "absoluteDate" : {
@@ -325,7 +325,7 @@
                               ]
                             },
                             "minutesBefore" : {
-                              "description" : "Non-negative minutes before startDate for a relative alarm.",
+                              "description" : "Non-negative minutes before dueDate for a relative alarm.",
                               "type" : [
                                 "integer",
                                 "null"

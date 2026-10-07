@@ -91,7 +91,7 @@ struct UpsertReminderItem {
     var recurrence: String?
     /// URL to attach to the reminder. Set to null to remove existing URL.
     var url: String?
-    /// Relative, absolute, or location alarms. A location alarm is what Reminders shows as the reminder's location. Relative alarms use the reminder start date. Set to null to remove all alarms.
+    /// Relative, absolute, or location alarms. A location alarm is what Reminders shows as the reminder's location. Relative alarms count back from the due date. Set to null to remove all alarms.
     var alarms: [ReminderAlarmInput]?
 }
 
@@ -99,7 +99,7 @@ struct UpsertReminderItem {
 struct ReminderAlarmInput {
     /// Alarm kind: relative, absolute, or location.
     var kind: ReminderAlarmKindInput
-    /// Non-negative minutes before startDate for a relative alarm.
+    /// Non-negative minutes before dueDate for a relative alarm.
     var minutesBefore: Int?
     /// ISO 8601 timestamp for an absolute alarm. A time without an offset is read in startTimeZone, else dueTimeZone.
     var absoluteDate: String?
