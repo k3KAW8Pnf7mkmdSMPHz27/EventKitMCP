@@ -62,9 +62,6 @@ extension ReminderService {
         if let priority = request.priority {
             reminder.priority = priority.rawValue
         }
-        if let location = request.location {
-            reminder.location = location
-        }
         if let urlString = request.url {
             reminder.url = try EventKitMapping.validatedURL(urlString)
         }
@@ -101,7 +98,6 @@ extension ReminderService {
         if let listId = request.listId {
             reminder.calendar = try calendarInAllowlist(id: listId)
         }
-        request.location.apply { reminder.location = $0 }
         try request.url.apply { reminder.url = try $0.map(EventKitMapping.validatedURL) }
         try request.recurrenceRule.apply { rrule in
             for rule in reminder.recurrenceRules ?? [] { reminder.removeRecurrenceRule(rule) }

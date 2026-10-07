@@ -73,7 +73,6 @@ struct ReminderServiceWriteTests {
                 dueTimeZone: "Asia/Tokyo",
                 priority: .high,
                 recurrenceRule: "FREQ=WEEKLY",
-                location: "Office",
                 url: "https://example.com/a",
                 startDate: Self.instant,
                 startTimeZone: "Asia/Tokyo",
@@ -87,7 +86,6 @@ struct ReminderServiceWriteTests {
         #expect(saved.title == "New")
         #expect(saved.notes == "Bring slides")
         #expect(saved.priority == ReminderPriority.high.rawValue)
-        #expect(saved.location == "Office")
         #expect(saved.url?.absoluteString == "https://example.com/a")
         #expect(saved.recurrenceRules?.map(RRuleParser.format) == ["FREQ=WEEKLY"])
         #expect(sameAlarms(saved.alarms, [.relative(minutesBefore: 10), .absolute(Self.instant)]))
@@ -195,7 +193,6 @@ struct ReminderServiceWriteTests {
                 notes: .set("n"),
                 dueDate: .set(ReminderDateValue(date: Self.instant, timeZoneIdentifier: "Asia/Tokyo", isAllDay: false)),
                 recurrenceRule: .set("FREQ=DAILY"),
-                location: .set("Office"),
                 url: .set("https://example.com"),
                 startDate: .set(
                     ReminderDateValue(date: Self.instant, timeZoneIdentifier: "Asia/Tokyo", isAllDay: true)),
@@ -204,7 +201,6 @@ struct ReminderServiceWriteTests {
         #expect(reminder.notes == "n")
         #expect(reminder.startDateComponents?.timeZone?.identifier == "Asia/Tokyo")
         #expect(reminder.startDateComponents?.day == 6 && reminder.startDateComponents?.hour == nil)
-        #expect(reminder.location == "Office")
         #expect(reminder.url?.absoluteString == "https://example.com")
 
         _ = try await f.service.updateReminder(
@@ -218,16 +214,16 @@ struct ReminderServiceWriteTests {
 
         _ = try await f.service.updateReminder(UpdateReminderRequest(id: f.existingId, title: "Renamed"))
         #expect(reminder.title == "Renamed")
-        #expect(reminder.notes == "n" && reminder.location == "Office" && reminder.url != nil)
+        #expect(reminder.notes == "n" && reminder.url != nil)
         #expect(reminder.dueDateComponents != nil && reminder.startDateComponents != nil)
         #expect(reminder.recurrenceRules?.count == 1 && reminder.alarms?.count == 2)
 
         _ = try await f.service.updateReminder(
             UpdateReminderRequest(
-                id: f.existingId, notes: .clear, dueDate: .clear, recurrenceRule: .clear, location: .clear,
+                id: f.existingId, notes: .clear, dueDate: .clear, recurrenceRule: .clear,
                 url: .clear, startDate: .clear, alarms: .clear
             ))
-        #expect(reminder.notes == nil && reminder.location == nil && reminder.url == nil)
+        #expect(reminder.notes == nil && reminder.url == nil)
         #expect(reminder.dueDateComponents == nil && reminder.startDateComponents == nil)
         #expect((reminder.recurrenceRules ?? []).isEmpty && (reminder.alarms ?? []).isEmpty)
         #expect(f.store.saved.count == 4)

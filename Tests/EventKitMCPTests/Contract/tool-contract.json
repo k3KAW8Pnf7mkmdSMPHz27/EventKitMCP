@@ -189,12 +189,6 @@
               "listName" : {
                 "type" : "string"
               },
-              "location" : {
-                "type" : [
-                  "string",
-                  "null"
-                ]
-              },
               "notes" : {
                 "type" : [
                   "string",
@@ -299,7 +293,7 @@
                   "alarms" : {
                     "oneOf" : [
                       {
-                        "description" : "Relative, absolute, or location alarms. Relative alarms use the reminder start date. Set to null to remove all alarms.",
+                        "description" : "Relative, absolute, or location alarms. A location alarm is what Reminders shows as the reminder's location. Relative alarms use the reminder start date. Set to null to remove all alarms.",
                         "items" : {
                           "properties" : {
                             "absoluteDate" : {
@@ -407,13 +401,6 @@
                   },
                   "listId" : {
                     "description" : "Target list ID (for create or move)",
-                    "type" : [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "location" : {
-                    "description" : "Location text. Set to null to remove existing location.",
                     "type" : [
                       "string",
                       "null"
@@ -601,12 +588,6 @@
               "listName" : {
                 "type" : "string"
               },
-              "location" : {
-                "type" : [
-                  "string",
-                  "null"
-                ]
-              },
               "notes" : {
                 "type" : [
                   "string",
@@ -770,12 +751,6 @@
               },
               "listName" : {
                 "type" : "string"
-              },
-              "location" : {
-                "type" : [
-                  "string",
-                  "null"
-                ]
               },
               "notes" : {
                 "type" : [
@@ -959,12 +934,6 @@
               },
               "listName" : {
                 "type" : "string"
-              },
-              "location" : {
-                "type" : [
-                  "string",
-                  "null"
-                ]
               },
               "notes" : {
                 "type" : [

@@ -205,7 +205,7 @@ One call carries at most 100 operations, counting `upsert` and `delete` together
 ### Supported reminder fields
 
 The write and query tools preserve titles, notes, completion state, priority, list,
-due date, start date, IANA time zones, all-day flags, location text, URL,
+due date, start date, IANA time zones, all-day flags, URL,
 RFC 5545 recurrence, and relative, absolute, or geofence alarms.
 
 Dates are ISO 8601: with an offset (`2026-01-06T10:00:00-06:00`), as wall-clock time
@@ -222,7 +222,7 @@ occurrence.
 
 Updates use three-state patch semantics for nullable fields: omit a property to leave
 it unchanged, send JSON `null` to clear it, or send a value to replace it. This applies
-to `notes`, `dueDate`, `location`, `url`, `startDate`, `recurrence`, and `alarms`.
+to `notes`, `dueDate`, `url`, `startDate`, `recurrence`, and `alarms`.
 URLs must include a scheme, and time zones must be valid IANA identifiers such as
 `America/Chicago`. Integer parameters (`days`, `limit`, `offset`, `minutesBefore`) take
 JSON integers, so `15.5` is rejected; coordinates and `radius` take any number.
@@ -244,6 +244,9 @@ Alarms use one of these tagged object shapes:
 
 An `absoluteDate` without an offset is read in `startTimeZone`, else `dueTimeZone`, else
 the Mac's local time. Relative alarms count back from the start date.
+
+A location alarm is what Reminders.app shows as a reminder's location. Reminders keeps no
+separate location text, so there is no `location` field.
 
 ### Manage Lists
 

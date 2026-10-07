@@ -18,7 +18,7 @@ before a major release. Use a scratch list; step 5 creates and deletes reminders
    list is outside --allowed-lists; pass listId". With only `stale-id`, it refuses to
    start.
 5. **Round trip.** Create a reminder with every field: notes, due date with a time zone,
-   start date, priority, URL, location, RFC 5545 recurrence, `done: true`, and one alarm
+   start date, priority, URL, RFC 5545 recurrence, `done: true`, and one alarm
    of each kind.
    Check it in Reminders.app, update each field, clear each with `null`, then delete it.
    *CI covers each EventKit call against unsaved objects. Only the save to the real

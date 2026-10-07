@@ -19,7 +19,6 @@ public struct ReminderModel: Sendable, Identifiable {
     /// Recurrence rule in RRULE format (RFC 5545), e.g., "FREQ=WEEKLY;BYDAY=MO,WE,FR"
     public let recurrenceRule: String?
     public let url: String?
-    public let location: String?
     public let startDate: Date?
     public let startTimeZone: String?
     public let isStartAllDay: Bool
@@ -39,7 +38,6 @@ public struct ReminderModel: Sendable, Identifiable {
         listName: String,
         recurrenceRule: String? = nil,
         url: String? = nil,
-        location: String? = nil,
         startDate: Date? = nil,
         startTimeZone: String? = nil,
         isStartAllDay: Bool = false,
@@ -58,7 +56,6 @@ public struct ReminderModel: Sendable, Identifiable {
         self.listName = listName
         self.recurrenceRule = recurrenceRule
         self.url = url
-        self.location = location
         self.startDate = startDate
         self.startTimeZone = startTimeZone
         self.isStartAllDay = isStartAllDay
@@ -115,7 +112,6 @@ public struct CreateReminderRequest: Sendable {
     public let priority: ReminderPriority?
     /// Recurrence rule in RRULE format (RFC 5545)
     public let recurrenceRule: String?
-    public let location: String?
     public let url: String?
     public let startDate: Date?
     public let startTimeZone: String?
@@ -132,7 +128,6 @@ public struct CreateReminderRequest: Sendable {
         isAllDay: Bool = false,
         priority: ReminderPriority? = nil,
         recurrenceRule: String? = nil,
-        location: String? = nil,
         url: String? = nil,
         startDate: Date? = nil,
         startTimeZone: String? = nil,
@@ -148,7 +143,6 @@ public struct CreateReminderRequest: Sendable {
         self.isAllDay = isAllDay
         self.priority = priority
         self.recurrenceRule = recurrenceRule
-        self.location = location
         self.url = url
         self.startDate = startDate
         self.startTimeZone = startTimeZone
@@ -203,7 +197,6 @@ public struct UpdateReminderRequest: Sendable {
     public let priority: ReminderPriority?
     public let listId: String?
     public let recurrenceRule: ReminderFieldUpdate<String>
-    public let location: ReminderFieldUpdate<String>
     public let url: ReminderFieldUpdate<String>
     public let startDate: ReminderFieldUpdate<ReminderDateValue>
     public let alarms: ReminderFieldUpdate<[ReminderAlarmModel]>
@@ -217,7 +210,6 @@ public struct UpdateReminderRequest: Sendable {
         priority: ReminderPriority? = nil,
         listId: String? = nil,
         recurrenceRule: ReminderFieldUpdate<String> = .unchanged,
-        location: ReminderFieldUpdate<String> = .unchanged,
         url: ReminderFieldUpdate<String> = .unchanged,
         startDate: ReminderFieldUpdate<ReminderDateValue> = .unchanged,
         alarms: ReminderFieldUpdate<[ReminderAlarmModel]> = .unchanged
@@ -230,7 +222,6 @@ public struct UpdateReminderRequest: Sendable {
         self.priority = priority
         self.listId = listId
         self.recurrenceRule = recurrenceRule
-        self.location = location
         self.url = url
         self.startDate = startDate
         self.alarms = alarms

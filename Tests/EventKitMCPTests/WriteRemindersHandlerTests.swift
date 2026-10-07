@@ -28,7 +28,6 @@ struct WriteRemindersHandlerTests {
         #expect(request.notes == .unchanged)
         #expect(request.dueDate == .unchanged)
         #expect(request.recurrenceRule == .unchanged)
-        #expect(request.location == .unchanged)
         #expect(request.url == .unchanged)
         #expect(request.startDate == .unchanged)
         #expect(request.alarms == .unchanged)
@@ -82,7 +81,6 @@ struct WriteRemindersHandlerTests {
                     "id": .string("clear-me"),
                     "notes": .null,
                     "dueDate": .null,
-                    "location": .null,
                     "url": .null,
                     "startDate": .null,
                     "recurrence": .null,
@@ -94,7 +92,6 @@ struct WriteRemindersHandlerTests {
         let request = try #require(service.updateRequests.last)
         #expect(request.notes == .clear)
         #expect(request.dueDate == .clear)
-        #expect(request.location == .clear)
         #expect(request.url == .clear)
         #expect(request.startDate == .clear)
         #expect(request.recurrenceRule == .clear)
@@ -118,25 +115,6 @@ struct WriteRemindersHandlerTests {
 
         result.expectText(containing: "Updated 1")
         #expect(service.updateRequests.last?.url == .set("https://example.com/updated"))
-    }
-
-    @Test("Update reminder with location")
-    func testUpdateWithLocation() async throws {
-        let service = MockReminderService()
-        service.mockReminders = [
-            TestFixtures.reminder(id: "rem-1", title: "Meeting")
-        ]
-
-        let result = await writeReminders(
-            upsert: [
-                [
-                    "id": .string("rem-1"),
-                    "location": .string("Room 42")
-                ]
-            ], service: service)
-
-        result.expectText(containing: "Updated 1")
-        #expect(service.updateRequests.last?.location == .set("Room 42"))
     }
 
     @Test("Update reminder alarms")

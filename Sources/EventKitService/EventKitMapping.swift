@@ -65,7 +65,6 @@ enum EventKitMapping {
             listName: reminder.calendar.title,
             recurrenceRule: recurrenceRule,
             url: reminder.url?.absoluteString,
-            location: reminder.location,
             startDate: startDate,
             startTimeZone: reminder.startDateComponents?.timeZone?.identifier,
             isStartAllDay: isStartAllDay,

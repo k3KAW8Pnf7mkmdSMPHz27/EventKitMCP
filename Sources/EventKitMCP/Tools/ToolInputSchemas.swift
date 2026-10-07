@@ -89,11 +89,9 @@ struct UpsertReminderItem {
     var listId: String?
     /// Recurrence rule in RRULE format (RFC 5545). Examples: "FREQ=DAILY", "FREQ=WEEKLY;BYDAY=MO,WE,FR", "FREQ=MONTHLY;BYDAY=2TU;COUNT=10". Set to null to remove existing recurrence.
     var recurrence: String?
-    /// Location text. Set to null to remove existing location.
-    var location: String?
     /// URL to attach to the reminder. Set to null to remove existing URL.
     var url: String?
-    /// Relative, absolute, or location alarms. Relative alarms use the reminder start date. Set to null to remove all alarms.
+    /// Relative, absolute, or location alarms. A location alarm is what Reminders shows as the reminder's location. Relative alarms use the reminder start date. Set to null to remove all alarms.
     var alarms: [ReminderAlarmInput]?
 }
 
@@ -173,7 +171,6 @@ struct ReminderOutput: Codable {
     var listName: String
     var recurrence: String?
     var url: String?
-    var location: String?
     var startDate: String?
     var startTimeZone: String?
     var isStartAllDay: Bool

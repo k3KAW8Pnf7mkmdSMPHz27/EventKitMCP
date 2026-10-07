@@ -23,7 +23,6 @@ extension ReminderModel {
             listName: listName,
             recurrence: recurrenceRule,
             url: url,
-            location: location,
             startDate: startDate.map(formatISO8601),
             startTimeZone: startTimeZone,
             isStartAllDay: isStartAllDay,
@@ -127,10 +126,6 @@ private func formatReminder(_ reminder: ReminderModel) -> String {
 
     if let url = reminder.url, !url.isEmpty {
         lines.append("  URL: \(url)")
-    }
-
-    if let location = reminder.location, !location.isEmpty {
-        lines.append("  Location: \(location)")
     }
 
     if let alarms = reminder.alarms, !alarms.isEmpty {

@@ -201,7 +201,7 @@ struct ToolSchemaContractTests {
                         ])
                     ])
                 ]), against: write.inputSchema))
-        let cleared = ["notes", "dueDate", "startDate", "recurrence", "location", "url", "alarms"]
+        let cleared = ["notes", "dueDate", "startDate", "recurrence", "url", "alarms"]
         #expect(
             try validates(
                 .object([

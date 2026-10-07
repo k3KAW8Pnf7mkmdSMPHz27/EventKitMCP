@@ -273,7 +273,6 @@ private func handleWriteReminders(
                     priority: try requirePriority(itemObj["priority"]?.stringValue),
                     listId: itemObj["listId"]?.stringValue,
                     recurrenceRule: try parseRecurrenceField(itemObj),
-                    location: try parseStringField(itemObj, key: "location"),
                     url: try parseURLField(itemObj),
                     startDate: try parseDateField(itemObj, key: "startDate", timeZoneKey: "startTimeZone"),
                     alarms: try parseAlarmsField(itemObj)
@@ -303,7 +302,6 @@ private func handleWriteReminders(
                     isAllDay: dueDate?.isAllDay ?? false,
                     priority: try requirePriority(itemObj["priority"]?.stringValue),
                     recurrenceRule: try parseRecurrenceField(itemObj).setValue,
-                    location: try parseStringField(itemObj, key: "location").setValue,
                     url: try parseURLField(itemObj).setValue,
                     startDate: startDate?.date,
                     startTimeZone: startDate?.timeZoneIdentifier,

@@ -67,7 +67,6 @@ final class MockReminderService: ReminderServiceProtocol {
             listName: "Default",
             recurrenceRule: request.recurrenceRule,
             url: request.url,
-            location: request.location,
             startDate: request.startDate,
             startTimeZone: request.startTimeZone,
             isStartAllDay: request.isStartAllDay,

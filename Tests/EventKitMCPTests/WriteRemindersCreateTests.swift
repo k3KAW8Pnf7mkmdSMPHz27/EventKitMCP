@@ -104,18 +104,6 @@ struct WriteRemindersCreateTests {
         result.expectText(containing: "Created 1", "URL: https://example.com/docs")
     }
 
-    @Test("Create reminder with location")
-    func testCreateWithLocation() async throws {
-        let result = await writeReminders(upsert: [
-            [
-                "title": .string("Meeting"),
-                "location": .string("Conference Room B")
-            ]
-        ])
-
-        result.expectText(containing: "Created 1", "Location: Conference Room B")
-    }
-
     @Test("Create reminder with alarms")
     func testCreateWithAlarms() async throws {
         let result = await writeReminders(upsert: [
@@ -167,7 +155,6 @@ struct WriteRemindersCreateTests {
     func createRejectsWrongTypes() async throws {
         let fields: [(String, Value, String)] = [
             ("notes", .int(1), "Invalid notes: expected a string or null"),
-            ("location", .bool(true), "Invalid location: expected a string or null"),
             ("dueDate", .int(5), "Invalid date format: '(non-string value)'"),
             ("startDate", .int(5), "Invalid date format: '(non-string value)'"),
             ("url", .int(5), "Invalid URL: '(non-string value)'")
