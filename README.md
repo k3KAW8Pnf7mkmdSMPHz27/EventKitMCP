@@ -212,9 +212,13 @@ Dates are ISO 8601: with an offset (`2026-01-06T10:00:00-06:00`), as wall-clock 
 (`2026-01-06T10:00:00`), or date-only for an all-day reminder (`2026-01-06`).
 `dueTimeZone` and `startTimeZone` anchor the wall-clock and date-only forms; without
 one, the date floats in the Mac's local time. A time-zone key is read only together with
-its date. EventKit keeps one time zone and one
-all-day form per reminder, so when the due and start dates disagree, the start date's
-apply to both.
+its date. EventKit keeps one time zone and one all-day form per reminder, so when the due
+and start dates disagree, the start date's apply to both. Reminders also gives a timed due
+date a matching start date, and a start date with no due date loses its time zone.
+
+Marking a recurring reminder done, on create or update, works as in Reminders.app: the
+current occurrence becomes a separate done reminder, and the reminder moves to its next
+occurrence.
 
 Updates use three-state patch semantics for nullable fields: omit a property to leave
 it unchanged, send JSON `null` to clear it, or send a value to replace it. This applies

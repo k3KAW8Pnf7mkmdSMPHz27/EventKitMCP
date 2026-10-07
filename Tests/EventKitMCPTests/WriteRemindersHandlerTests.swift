@@ -281,6 +281,14 @@ struct WriteRemindersHandlerTests {
         #expect(service.mockReminders.isEmpty)
     }
 
+    @Test("A batch where every item fails says no changes were made")
+    func allItemsFailed() async throws {
+        let result = await callTool(
+            "write_reminders", arguments: ["upsert": .array([.int(5)])], reminderService: MockReminderService())
+        let text = try #require(result.textContent)
+        #expect(text.hasPrefix("No changes made.\n\nFailed:"), "\(text)")
+    }
+
     @Test("A non-object upsert element fails that item and names what was expected")
     func nonObjectUpsertElement() async {
         let service = MockReminderService()

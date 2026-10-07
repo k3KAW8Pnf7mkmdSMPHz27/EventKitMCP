@@ -49,6 +49,26 @@ struct EventKitMappingTests {
         #expect(EventKitMapping.hexFromColor(nil) == nil)
     }
 
+    @Test("Colours are written as sRGB and read back as sRGB from any colour space")
+    func colorSpaces() throws {
+        let written = try #require(EventKitMapping.colorFromHex("#FF5733"))
+        #expect(written.colorSpace?.name == CGColorSpace.sRGB)
+        // What the store hands back for a hex colour that was written as Generic RGB.
+        let generic = CGColor(red: 1, green: 0x57 / 255.0, blue: 0x33 / 255.0, alpha: 1)
+        #expect(EventKitMapping.hexFromColor(generic) == "#FF6F41")
+    }
+
+    @Test("Empty notes map to no notes")
+    func emptyNotes() {
+        let store = EKEventStore()
+        let reminder = EKReminder(eventStore: store)
+        reminder.calendar = EKCalendar(for: .reminder, eventStore: store)
+        for (notes, expected) in [(nil, nil), ("", nil), ("kept", "kept")] as [(String?, String?)] {
+            reminder.notes = notes
+            #expect(EventKitMapping.mapReminderToModel(reminder).notes == expected, "\(notes ?? "nil")")
+        }
+    }
+
     @Test("Alarms round-trip through EventKit for every kind")
     func alarmRoundTrip() throws {
         let office = ReminderAlarmModel.StructuredLocation(

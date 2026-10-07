@@ -53,7 +53,8 @@ enum EventKitMapping {
         return ReminderModel(
             id: reminder.calendarItemIdentifier,
             title: reminder.title ?? "",
-            notes: reminder.notes,
+            // The store saves cleared notes as "", which callers cleared with null.
+            notes: reminder.notes?.isEmpty == false ? reminder.notes : nil,
             done: reminder.isCompleted,
             priority: ReminderPriority(eventKitPriority: reminder.priority),
             dueDate: dueDate,
@@ -165,20 +166,22 @@ enum EventKitMapping {
         let green = CGFloat((rgb & 0x00FF00) >> 8) / 255.0
         let blue = CGFloat(rgb & 0x0000FF) / 255.0
 
-        return CGColor(red: red, green: green, blue: blue, alpha: 1.0)
+        // Hex colours are sRGB; CGColor(red:green:blue:alpha:) is Generic RGB, which the store shifts.
+        return CGColor(srgbRed: red, green: green, blue: blue, alpha: 1.0)
     }
 
     static func hexFromColor(_ cgColor: CGColor?) -> String? {
-        guard let color = cgColor,
+        guard let sRGB = CGColorSpace(name: CGColorSpace.sRGB),
+            let color = cgColor?.converted(to: sRGB, intent: .defaultIntent, options: nil),
             let components = color.components,
             components.count >= 3
         else {
             return nil
         }
 
-        let red = Int(components[0] * 255)
-        let green = Int(components[1] * 255)
-        let blue = Int(components[2] * 255)
+        let red = Int((components[0] * 255).rounded())
+        let green = Int((components[1] * 255).rounded())
+        let blue = Int((components[2] * 255).rounded())
 
         return String(format: "#%02X%02X%02X", red, green, blue)
     }

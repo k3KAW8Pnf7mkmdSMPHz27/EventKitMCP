@@ -358,10 +358,10 @@ private func formatWriteResult(
     if !updated.isEmpty {
         summaryParts.append("Updated \(updated.count)")
     }
-    if summaryParts.isEmpty && failures.isEmpty {
+    if summaryParts.isEmpty {
         summaryParts.append("No changes made")
     }
-    lines.append(summaryParts.joined(separator: ". ") + (summaryParts.isEmpty ? "" : "."))
+    lines.append(summaryParts.joined(separator: ". ") + ".")
 
     for (heading, reminders) in [("Deleted:", deleted), ("Created:", created), ("Updated:", updated)]
     where !reminders.isEmpty {
