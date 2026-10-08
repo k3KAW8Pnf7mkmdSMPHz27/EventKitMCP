@@ -191,7 +191,7 @@ struct ToolSchemaContractTests {
                     "upsert": .array([
                         .object([
                             "title": .string("Call the office"),
-                            "startDate": .string("2026-09-04T14:00:00-05:00"),
+                            "dueDate": .string("2026-09-04T14:00:00-05:00"),
                             "alarms": .array([
                                 .object([
                                     "kind": .string("relative"),

@@ -82,6 +82,13 @@ extension ReminderService {
     func updateReminderImpl(_ request: UpdateReminderRequest) async throws -> ReminderModel {
         let reminder = try reminderInAllowlist(id: request.id)
 
+        // Checked before any change: clearing the due date must not strand the relative alarms it keeps.
+        if case .clear = request.dueDate, case .unchanged = request.alarms,
+            reminder.alarms?.contains(where: { $0.absoluteDate == nil && $0.structuredLocation == nil }) == true
+        {
+            throw ReminderServiceError.relativeAlarmRequiresDueDate
+        }
+
         if let title = request.title {
             reminder.title = title
         }

@@ -277,6 +277,25 @@ struct ReminderServiceWriteTests {
         #expect(f.store.saved.count == 1)
     }
 
+    @Test("Clearing the due date is refused while relative alarms stay, and allowed once they go")
+    func dueDateClearKeepsAlarmsValid() async throws {
+        let f = Self.fixture()
+        let due = ReminderDateValue(date: Self.instant, isAllDay: false)
+        _ = try await f.service.updateReminder(
+            UpdateReminderRequest(id: f.existingId, dueDate: .set(due), alarms: .set([.relative(minutesBefore: 5)])))
+
+        await #expect(throws: ReminderServiceError.relativeAlarmRequiresDueDate) {
+            try await f.service.updateReminder(UpdateReminderRequest(id: f.existingId, dueDate: .clear))
+        }
+        #expect(f.store.saved.count == 1)
+        #expect(try f.reminder(f.existingId).dueDateComponents != nil)
+
+        _ = try await f.service.updateReminder(
+            UpdateReminderRequest(id: f.existingId, alarms: .set([.absolute(Self.instant)])))
+        _ = try await f.service.updateReminder(UpdateReminderRequest(id: f.existingId, dueDate: .clear))
+        #expect(try f.reminder(f.existingId).dueDateComponents == nil)
+    }
+
     @Test("Moving a reminder checks the allowlist before looking the target list up")
     func moveListPrecedence() async throws {
         for target in ["home", "gone-and-hidden", "gone-but-allowed"] {
