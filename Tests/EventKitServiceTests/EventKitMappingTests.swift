@@ -49,6 +49,26 @@ struct EventKitMappingTests {
         #expect(EventKitMapping.hexFromColor(nil) == nil)
     }
 
+    @Test("Colours are written as sRGB and read back as sRGB from any colour space")
+    func colorSpaces() throws {
+        let written = try #require(EventKitMapping.colorFromHex("#FF5733"))
+        #expect(written.colorSpace?.name == CGColorSpace.sRGB)
+        // What the store hands back for a hex colour that was written as Generic RGB.
+        let generic = CGColor(red: 1, green: 0x57 / 255.0, blue: 0x33 / 255.0, alpha: 1)
+        #expect(EventKitMapping.hexFromColor(generic) == "#FF6F41")
+    }
+
+    @Test("Empty notes map to no notes")
+    func emptyNotes() {
+        let store = EKEventStore()
+        let reminder = EKReminder(eventStore: store)
+        reminder.calendar = EKCalendar(for: .reminder, eventStore: store)
+        for (notes, expected) in [(nil, nil), ("", nil), ("kept", "kept")] as [(String?, String?)] {
+            reminder.notes = notes
+            #expect(EventKitMapping.mapReminderToModel(reminder).notes == expected, "\(notes ?? "nil")")
+        }
+    }
+
     @Test("Alarms round-trip through EventKit for every kind")
     func alarmRoundTrip() throws {
         let office = ReminderAlarmModel.StructuredLocation(
@@ -62,23 +82,23 @@ struct EventKitMappingTests {
             .location(office, proximity: .none)
         ]
         for model in models {
-            let alarm = try #require(try EventKitMapping.makeAlarms([model], hasStartDate: true).first)
+            let alarm = try #require(try EventKitMapping.makeAlarms([model], hasDueDate: true).first)
             #expect(EventKitMapping.mapAlarm(alarm) == model, "\(model)")
         }
         #expect(throws: ReminderServiceError.invalidAlarm) {
-            try EventKitMapping.makeAlarms([.relative(minutesBefore: -1)], hasStartDate: true)
+            try EventKitMapping.makeAlarms([.relative(minutesBefore: -1)], hasDueDate: true)
         }
     }
 
-    @Test("Relative alarms need a start date and a non-negative offset")
+    @Test("Relative alarms need a due date and a non-negative offset")
     func alarmReferences() throws {
-        #expect(try EventKitMapping.makeAlarms([.relative(minutesBefore: 5)], hasStartDate: true).count == 1)
-        #expect(try EventKitMapping.makeAlarms([.absolute(instant)], hasStartDate: false).count == 1)
-        #expect(throws: ReminderServiceError.relativeAlarmRequiresStartDate) {
-            try EventKitMapping.makeAlarms([.relative(minutesBefore: 5)], hasStartDate: false)
+        #expect(try EventKitMapping.makeAlarms([.relative(minutesBefore: 5)], hasDueDate: true).count == 1)
+        #expect(try EventKitMapping.makeAlarms([.absolute(instant)], hasDueDate: false).count == 1)
+        #expect(throws: ReminderServiceError.relativeAlarmRequiresDueDate) {
+            try EventKitMapping.makeAlarms([.relative(minutesBefore: 5)], hasDueDate: false)
         }
         #expect(throws: ReminderServiceError.invalidAlarm) {
-            try EventKitMapping.makeAlarms([.relative(minutesBefore: -5)], hasStartDate: true)
+            try EventKitMapping.makeAlarms([.relative(minutesBefore: -5)], hasDueDate: true)
         }
     }
 

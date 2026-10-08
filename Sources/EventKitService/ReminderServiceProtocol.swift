@@ -8,9 +8,6 @@ public protocol ReminderServiceProtocol: Sendable {
     /// Get all reminder lists
     func getLists() async throws -> [ReminderListModel]
 
-    /// Get a specific reminder list by ID
-    func getList(id: String) async throws -> ReminderListModel?
-
     /// Create a new reminder list
     func createList(_ request: CreateListRequest) async throws -> ReminderListModel
 
@@ -19,9 +16,6 @@ public protocol ReminderServiceProtocol: Sendable {
 
     /// Get all reminders, optionally filtered by list
     func getReminders(listId: String?, includeDone: Bool) async throws -> [ReminderModel]
-
-    /// Get a specific reminder by ID
-    func getReminder(id: String) async throws -> ReminderModel?
 
     /// Create a new reminder
     func createReminder(_ request: CreateReminderRequest) async throws -> ReminderModel

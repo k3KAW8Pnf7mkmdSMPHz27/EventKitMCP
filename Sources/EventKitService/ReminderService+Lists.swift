@@ -9,17 +9,6 @@ extension ReminderService {
         return calendars.map { EventKitMapping.mapCalendarToList($0) }
     }
 
-    func getListImpl(id: String) async throws -> ReminderListModel? {
-        guard isListAllowed(id: id) else {
-            throw ReminderServiceError.listAccessDenied(id)
-        }
-        // A lookup, so a missing list is nil; deleting one is an error.
-        guard let calendar = reminderStore.calendar(withIdentifier: id) else {
-            return nil
-        }
-        return EventKitMapping.mapCalendarToList(calendar)
-    }
-
     func createListImpl(_ request: CreateListRequest) async throws -> ReminderListModel {
         // Block list creation when allowlist is active
         if listAccess.isRestricted {

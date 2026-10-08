@@ -15,6 +15,8 @@ enum ParseError: Error, LocalizedError {
     case invalidAlarms(String)
     case invalidStringValue(String)
     case invalidPagination(String)
+    case missingParameter(String, action: String?)
+    case invalidParameter(String, value: String, expected: String)
 
     var errorDescription: String? {
         switch self {
@@ -43,6 +45,10 @@ enum ParseError: Error, LocalizedError {
             return "Invalid \(field): expected a string or null"
         case .invalidPagination(let reason):
             return "Invalid pagination: \(reason)"
+        case .missingParameter(let name, let action):
+            return "Missing required parameter: \(name)" + (action.map { " (required for \($0) action)" } ?? "")
+        case .invalidParameter(let name, let value, let expected):
+            return "Invalid \(name): '\(value)'. \(expected)"
         }
     }
 }
@@ -83,22 +89,6 @@ private func parseDateWithTimeInfo(_ string: String?, in timeZone: TimeZone? = n
     }
 
     return nil
-}
-
-private func parseDate(_ string: String?) -> Date? {
-    parseDateWithTimeInfo(string)?.date
-}
-
-/// Parse date with time info and explicit error when format is invalid
-func requireDateWithTimeInfo(
-    _ string: String?,
-    in timeZone: TimeZone? = nil
-) throws -> (date: Date, isAllDay: Bool)? {
-    guard let string = string else { return nil }
-    guard let parsed = parseDateWithTimeInfo(string, in: timeZone) else {
-        throw ParseError.invalidDateFormat(string)
-    }
-    return parsed
 }
 
 private func parsePriority(_ string: String?) -> ReminderPriority? {
@@ -190,11 +180,19 @@ func parseAlarmsField(_ itemObj: [String: Value]) throws -> ReminderFieldUpdate<
         guard let array = value.arrayValue else {
             throw ParseError.invalidAlarms("expected an array or null")
         }
-        return try array.enumerated().map { index, element in try parseAlarm(element, at: index) }
+        // Start zone first, as EventKit gives a reminder its start date's zone. Resolved
+        // only for an absolute alarm, so other alarms never trip over an unused zone key.
+        let zone = {
+            try (parseTimeZone(itemObj["startTimeZone"]) ?? parseTimeZone(itemObj["dueTimeZone"]))
+                .flatMap(TimeZone.init(identifier:))
+        }
+        return try array.enumerated().map { index, element in try parseAlarm(element, at: index, zone: zone) }
     }
 }
 
-private func parseAlarm(_ element: Value, at index: Int) throws -> ReminderAlarmModel {
+private func parseAlarm(
+    _ element: Value, at index: Int, zone: () throws -> TimeZone?
+) throws -> ReminderAlarmModel {
     guard let object = element.objectValue, let kind = object["kind"]?.stringValue else {
         throw ParseError.invalidAlarms("element \(index) must be an alarm object with a kind")
     }
@@ -205,7 +203,7 @@ private func parseAlarm(_ element: Value, at index: Int) throws -> ReminderAlarm
         }
         return .relative(minutesBefore: minutes)
     case .absolute:
-        guard let date = parseDate(object["absoluteDate"]?.stringValue) else {
+        guard let date = parseDateWithTimeInfo(object["absoluteDate"]?.stringValue, in: try zone())?.date else {
             throw ParseError.invalidAlarms("absolute element \(index) needs a valid absoluteDate")
         }
         return .absolute(date)
@@ -259,12 +257,6 @@ func parseStringField(_ object: [String: Value], key: String) throws -> Reminder
         }
         return string
     }
-}
-
-/// Create path: absent and null both mean no URL.
-func parseURL(_ value: Value?) throws -> String? {
-    guard let value, !value.isNull else { return nil }
-    return try validatedURLString(value)
 }
 
 func parseURLField(_ object: [String: Value]) throws -> ReminderFieldUpdate<String> {

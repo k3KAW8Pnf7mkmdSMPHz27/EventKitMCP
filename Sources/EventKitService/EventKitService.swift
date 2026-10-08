@@ -8,10 +8,6 @@
 
 import Foundation
 
-// Re-export models
-public typealias Reminder = ReminderModel
-public typealias ReminderList = ReminderListModel
-
 // Version Info
 // A placeholder for local builds. Releases are cut by tagging, and the Homebrew
 // formula writes the tag's version here before building.

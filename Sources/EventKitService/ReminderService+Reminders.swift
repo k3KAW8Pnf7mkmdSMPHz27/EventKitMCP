@@ -25,21 +25,13 @@ extension ReminderService {
         return try await fetchReminderModels(predicate: predicate)
     }
 
-    func getReminderImpl(id: String) async throws -> ReminderModel? {
-        do {
-            return EventKitMapping.mapReminderToModel(try reminderInAllowlist(id: id))
-        } catch ReminderServiceError.reminderNotFound, ReminderServiceError.reminderAccessDenied {
-            // Report an out-of-allowlist reminder exactly as a missing one. Throwing here
-            // while a nonexistent ID returns nil would confirm that a reminder exists
-            // outside the caller's permitted lists.
-            return nil
-        }
-    }
-
     func createReminderImpl(_ request: CreateReminderRequest) async throws -> ReminderModel {
         let reminder = EKReminder(eventStore: eventStore)
         reminder.title = request.title
         reminder.notes = request.notes
+        if request.done {
+            reminder.isCompleted = true
+        }
 
         // Set the calendar (list)
         if let listId = request.listId {
@@ -50,7 +42,7 @@ extension ReminderService {
                 throw ReminderServiceError.noValidSource
             }
             guard isListAllowed(id: defaultCal.calendarIdentifier) else {
-                throw ReminderServiceError.listAccessDenied(defaultCal.calendarIdentifier)
+                throw ReminderServiceError.defaultListNotAllowed
             }
             reminder.calendar = defaultCal
         }
@@ -70,9 +62,6 @@ extension ReminderService {
         if let priority = request.priority {
             reminder.priority = priority.rawValue
         }
-        if let location = request.location {
-            reminder.location = location
-        }
         if let urlString = request.url {
             reminder.url = try EventKitMapping.validatedURL(urlString)
         }
@@ -80,7 +69,7 @@ extension ReminderService {
             reminder.addRecurrenceRule(try RRuleParser.parse(rrule))
         }
         if let alarms = request.alarms {
-            let ekAlarms = try EventKitMapping.makeAlarms(alarms, hasStartDate: reminder.startDateComponents != nil)
+            let ekAlarms = try EventKitMapping.makeAlarms(alarms, hasDueDate: reminder.dueDateComponents != nil)
             for alarm in ekAlarms { reminder.addAlarm(alarm) }
         }
 
@@ -93,15 +82,20 @@ extension ReminderService {
     func updateReminderImpl(_ request: UpdateReminderRequest) async throws -> ReminderModel {
         let reminder = try reminderInAllowlist(id: request.id)
 
+        // Checked before any change: clearing the due date must not strand the relative alarms it keeps.
+        if case .clear = request.dueDate, case .unchanged = request.alarms,
+            reminder.alarms?.contains(where: { $0.absoluteDate == nil && $0.structuredLocation == nil }) == true
+        {
+            throw ReminderServiceError.relativeAlarmRequiresDueDate
+        }
+
         if let title = request.title {
             reminder.title = title
         }
         request.notes.apply { reminder.notes = $0 }
-        if let done = request.done {
+        // Setting isCompleted to true restamps completionDate, so only write a change.
+        if let done = request.done, done != reminder.isCompleted {
             reminder.isCompleted = done
-            if done && reminder.completionDate == nil {
-                reminder.completionDate = Date()
-            }
         }
         try request.dueDate.apply { reminder.dueDateComponents = try $0.map(EventKitMapping.dateComponents) }
         try request.startDate.apply { reminder.startDateComponents = try $0.map(EventKitMapping.dateComponents) }
@@ -111,16 +105,15 @@ extension ReminderService {
         if let listId = request.listId {
             reminder.calendar = try calendarInAllowlist(id: listId)
         }
-        request.location.apply { reminder.location = $0 }
         try request.url.apply { reminder.url = try $0.map(EventKitMapping.validatedURL) }
         try request.recurrenceRule.apply { rrule in
             for rule in reminder.recurrenceRules ?? [] { reminder.removeRecurrenceRule(rule) }
             if let rrule { reminder.addRecurrenceRule(try RRuleParser.parse(rrule)) }
         }
-        // Alarms come last: relative ones need the start date this request may have just set.
+        // Alarms come last: relative ones need the due date this request may have just set.
         try request.alarms.apply { alarms in
             let ekAlarms = try alarms.map {
-                try EventKitMapping.makeAlarms($0, hasStartDate: reminder.startDateComponents != nil)
+                try EventKitMapping.makeAlarms($0, hasDueDate: reminder.dueDateComponents != nil)
             }
             for alarm in reminder.alarms ?? [] { reminder.removeAlarm(alarm) }
             for alarm in ekAlarms ?? [] { reminder.addAlarm(alarm) }

@@ -10,6 +10,7 @@ final class MockReminderService: ReminderServiceProtocol {
     // Track method calls for verification
     var getRemindersCalled = false
     var lastGetRemindersIncludeDone: Bool?
+    var createRequests: [CreateReminderRequest] = []
     var updateRequests: [UpdateReminderRequest] = []
 
     func requestAccess() async throws -> Bool {
@@ -18,10 +19,6 @@ final class MockReminderService: ReminderServiceProtocol {
 
     func getLists() async throws -> [ReminderListModel] {
         return mockLists
-    }
-
-    func getList(id: String) async throws -> ReminderListModel? {
-        return mockLists.first { $0.id == id }
     }
 
     func createList(_ request: CreateListRequest) async throws -> ReminderListModel {
@@ -55,16 +52,13 @@ final class MockReminderService: ReminderServiceProtocol {
         return result
     }
 
-    func getReminder(id: String) async throws -> ReminderModel? {
-        return mockReminders.first { $0.id == id }
-    }
-
     func createReminder(_ request: CreateReminderRequest) async throws -> ReminderModel {
+        createRequests.append(request)
         let reminder = ReminderModel(
             id: UUID().uuidString,
             title: request.title,
             notes: request.notes,
-            done: false,
+            done: request.done,
             priority: request.priority ?? .none,
             dueDate: request.dueDate,
             dueTimeZone: request.dueTimeZone,
@@ -73,7 +67,6 @@ final class MockReminderService: ReminderServiceProtocol {
             listName: "Default",
             recurrenceRule: request.recurrenceRule,
             url: request.url,
-            location: request.location,
             startDate: request.startDate,
             startTimeZone: request.startTimeZone,
             isStartAllDay: request.isStartAllDay,

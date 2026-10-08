@@ -55,7 +55,6 @@ enum TestFixtures {
         listId: String = "list-1",
         listName: String = "Work",
         url: String? = nil,
-        location: String? = nil,
         startDate: Date? = nil,
         isStartAllDay: Bool = false,
         alarms: [Int]? = nil
@@ -71,7 +70,6 @@ enum TestFixtures {
             listId: listId,
             listName: listName,
             url: url,
-            location: location,
             startDate: startDate,
             isStartAllDay: isStartAllDay,
             alarms: alarms?.map(ReminderAlarmModel.relative(minutesBefore:))

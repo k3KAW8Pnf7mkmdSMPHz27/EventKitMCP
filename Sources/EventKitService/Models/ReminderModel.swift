@@ -16,12 +16,9 @@ public struct ReminderModel: Sendable, Identifiable {
     public let doneDate: Date?
     public let listId: String
     public let listName: String
-    public let creationDate: Date?
-    public let lastModifiedDate: Date?
     /// Recurrence rule in RRULE format (RFC 5545), e.g., "FREQ=WEEKLY;BYDAY=MO,WE,FR"
     public let recurrenceRule: String?
     public let url: String?
-    public let location: String?
     public let startDate: Date?
     public let startTimeZone: String?
     public let isStartAllDay: Bool
@@ -39,11 +36,8 @@ public struct ReminderModel: Sendable, Identifiable {
         doneDate: Date? = nil,
         listId: String,
         listName: String,
-        creationDate: Date? = nil,
-        lastModifiedDate: Date? = nil,
         recurrenceRule: String? = nil,
         url: String? = nil,
-        location: String? = nil,
         startDate: Date? = nil,
         startTimeZone: String? = nil,
         isStartAllDay: Bool = false,
@@ -60,11 +54,8 @@ public struct ReminderModel: Sendable, Identifiable {
         self.doneDate = doneDate
         self.listId = listId
         self.listName = listName
-        self.creationDate = creationDate
-        self.lastModifiedDate = lastModifiedDate
         self.recurrenceRule = recurrenceRule
         self.url = url
-        self.location = location
         self.startDate = startDate
         self.startTimeZone = startTimeZone
         self.isStartAllDay = isStartAllDay
@@ -75,7 +66,7 @@ public struct ReminderModel: Sendable, Identifiable {
 // MARK: - Reminder Priority
 
 /// Priority levels for reminders
-public enum ReminderPriority: Int, Sendable, CaseIterable {
+public enum ReminderPriority: Int, Sendable {
     case none = 0
     case high = 1
     case medium = 5
@@ -121,12 +112,12 @@ public struct CreateReminderRequest: Sendable {
     public let priority: ReminderPriority?
     /// Recurrence rule in RRULE format (RFC 5545)
     public let recurrenceRule: String?
-    public let location: String?
     public let url: String?
     public let startDate: Date?
     public let startTimeZone: String?
     public let isStartAllDay: Bool
     public let alarms: [ReminderAlarmModel]?
+    public let done: Bool
 
     public init(
         title: String,
@@ -137,12 +128,12 @@ public struct CreateReminderRequest: Sendable {
         isAllDay: Bool = false,
         priority: ReminderPriority? = nil,
         recurrenceRule: String? = nil,
-        location: String? = nil,
         url: String? = nil,
         startDate: Date? = nil,
         startTimeZone: String? = nil,
         isStartAllDay: Bool = false,
-        alarms: [ReminderAlarmModel]? = nil
+        alarms: [ReminderAlarmModel]? = nil,
+        done: Bool = false
     ) {
         self.title = title
         self.notes = notes
@@ -152,12 +143,12 @@ public struct CreateReminderRequest: Sendable {
         self.isAllDay = isAllDay
         self.priority = priority
         self.recurrenceRule = recurrenceRule
-        self.location = location
         self.url = url
         self.startDate = startDate
         self.startTimeZone = startTimeZone
         self.isStartAllDay = isStartAllDay
         self.alarms = alarms
+        self.done = done
     }
 }
 
@@ -206,7 +197,6 @@ public struct UpdateReminderRequest: Sendable {
     public let priority: ReminderPriority?
     public let listId: String?
     public let recurrenceRule: ReminderFieldUpdate<String>
-    public let location: ReminderFieldUpdate<String>
     public let url: ReminderFieldUpdate<String>
     public let startDate: ReminderFieldUpdate<ReminderDateValue>
     public let alarms: ReminderFieldUpdate<[ReminderAlarmModel]>
@@ -220,7 +210,6 @@ public struct UpdateReminderRequest: Sendable {
         priority: ReminderPriority? = nil,
         listId: String? = nil,
         recurrenceRule: ReminderFieldUpdate<String> = .unchanged,
-        location: ReminderFieldUpdate<String> = .unchanged,
         url: ReminderFieldUpdate<String> = .unchanged,
         startDate: ReminderFieldUpdate<ReminderDateValue> = .unchanged,
         alarms: ReminderFieldUpdate<[ReminderAlarmModel]> = .unchanged
@@ -233,7 +222,6 @@ public struct UpdateReminderRequest: Sendable {
         self.priority = priority
         self.listId = listId
         self.recurrenceRule = recurrenceRule
-        self.location = location
         self.url = url
         self.startDate = startDate
         self.alarms = alarms

@@ -26,21 +26,18 @@ extension CallTool.Result {
     static func failure(_ message: String) -> Self {
         text(message, isError: true)
     }
+}
 
-    /// Create error response for missing required parameter
-    static func missingParameter(_ name: String, for action: String? = nil) -> Self {
-        let actionSuffix = action.map { " (required for \($0) action)" } ?? ""
-        return .failure("Missing required parameter: \(name)\(actionSuffix)")
-    }
+/// Refusals that come from the tool name rather than its arguments.
+enum ToolCallError: Error, LocalizedError {
+    case readOnly(String)
+    case unknownTool(String)
 
-    /// Create error response for invalid parameter value
-    static func invalidParameter(_ name: String, value: String, expected: String) -> Self {
-        .failure("Invalid \(name): '\(value)'. \(expected)")
-    }
-
-    /// Create error response for disallowed operation
-    static func notAllowed(_ reason: String) -> Self {
-        .failure(reason)
+    var errorDescription: String? {
+        switch self {
+        case .readOnly(let name): "Operation '\(name)' is not allowed in read-only mode"
+        case .unknownTool(let name): "Unknown tool: \(name)"
+        }
     }
 }
 
@@ -54,12 +51,11 @@ public func handleToolCall(
     readOnly: Bool = false,
     now: Date = Date()
 ) async -> CallTool.Result {
-    // Block mutating operations in read-only mode
-    if readOnly && ToolRegistry.mutatingTools.contains(name) {
-        return .notAllowed("Operation '\(name)' is not allowed in read-only mode")
-    }
-
     do {
+        if readOnly && ToolRegistry.mutatingTools.contains(name) {
+            throw ToolCallError.readOnly(name)
+        }
+
         switch name {
         // Unified query tool
         case "query_reminders":
@@ -80,7 +76,7 @@ public func handleToolCall(
             return try await handleGetOverview(reminderService: reminderService, now: now)
 
         default:
-            return .failure("Unknown tool: \(name)")
+            throw ToolCallError.unknownTool(name)
         }
     } catch {
         logger.error(
@@ -221,14 +217,15 @@ private func handleWriteReminders(
     let deleteArray = arguments?["delete"]?.arrayValue ?? []
 
     if upsertArray.isEmpty && deleteArray.isEmpty {
-        return .invalidParameter("input", value: "{}", expected: "At least one of 'upsert' or 'delete' required")
+        throw ParseError.invalidParameter(
+            "input", value: "{}", expected: "At least one of 'upsert' or 'delete' required")
     }
 
     // Each element is a serialized EventKit write behind the operation gate, so an
     // unbounded batch pushes concurrent callers into operationTimedOut.
     let batchCount = upsertArray.count + deleteArray.count
     if batchCount > maximumBatchSize {
-        return .invalidParameter(
+        throw ParseError.invalidParameter(
             "input",
             value: "\(batchCount) operations",
             expected: "At most \(maximumBatchSize) combined 'upsert' and 'delete' operations per call"
@@ -242,12 +239,11 @@ private func handleWriteReminders(
     var failures: [(id: String, error: String)] = []
 
     // 1. Process deletes first (avoid updating items that will be deleted)
-    let deleteIds = deleteArray.compactMap { $0.stringValue }
-    if deleteIds.count != deleteArray.count {
-        return .invalidParameter(
-            "delete", value: "non-string element", expected: "Every element must be a reminder ID string")
-    }
-    for id in deleteIds {
+    for (index, element) in deleteArray.enumerated() {
+        guard let id = element.stringValue else {
+            failures.append((id: "delete[\(index)]", error: "Invalid item format: expected a reminder ID string"))
+            continue
+        }
         do {
             let deleted = try await reminderService.deleteReminder(id: id)
             deletedReminders.append(deleted)
@@ -259,7 +255,7 @@ private func handleWriteReminders(
     // 2. Process upserts
     for (index, itemValue) in upsertArray.enumerated() {
         guard let itemObj = itemValue.objectValue else {
-            failures.append((id: "upsert[\(index)]", error: "Invalid item format"))
+            failures.append((id: "upsert[\(index)]", error: "Invalid item format: expected an object"))
             continue
         }
 
@@ -277,7 +273,6 @@ private func handleWriteReminders(
                     priority: try requirePriority(itemObj["priority"]?.stringValue),
                     listId: itemObj["listId"]?.stringValue,
                     recurrenceRule: try parseRecurrenceField(itemObj),
-                    location: try parseStringField(itemObj, key: "location"),
                     url: try parseURLField(itemObj),
                     startDate: try parseDateField(itemObj, key: "startDate", timeZoneKey: "startTimeZone"),
                     alarms: try parseAlarmsField(itemObj)
@@ -295,48 +290,24 @@ private func handleWriteReminders(
             }
 
             do {
-                // Parse recurrence; null is equivalent to omission during creation.
-                let recurrenceRule = try parseRecurrenceField(itemObj).setValue
-
-                // Resolve zones first so date-only inputs anchor to the caller's zone.
-                let dueTimeZoneId = try parseTimeZone(itemObj["dueTimeZone"])
-                let startTimeZoneId = try parseTimeZone(itemObj["startTimeZone"])
-
-                // Parse due date with time info to determine isAllDay
-                let dateInfo = try requireDateWithTimeInfo(
-                    itemObj["dueDate"]?.stringValue,
-                    in: dueTimeZoneId.flatMap(TimeZone.init(identifier:))
-                )
-
-                // Parse start date
-                let startDateInfo = try requireDateWithTimeInfo(
-                    itemObj["startDate"]?.stringValue,
-                    in: startTimeZoneId.flatMap(TimeZone.init(identifier:))
-                )
-
-                // Parse alarms
-                let createAlarms = try parseAlarmsField(itemObj).setValue
-                if createAlarms?.contains(where: { $0.kind == .relative }) == true,
-                    startDateInfo == nil
-                {
-                    throw ParseError.invalidAlarms("relative alarms require startDate")
-                }
-
+                // The update path's parsers, with null meaning the same as omitted.
+                let dueDate = try parseDateField(itemObj, key: "dueDate", timeZoneKey: "dueTimeZone").setValue
+                let startDate = try parseDateField(itemObj, key: "startDate", timeZoneKey: "startTimeZone").setValue
                 let request = CreateReminderRequest(
                     title: title,
-                    notes: itemObj["notes"]?.stringValue,
+                    notes: try parseStringField(itemObj, key: "notes").setValue,
                     listId: itemObj["listId"]?.stringValue,
-                    dueDate: dateInfo?.date,
-                    dueTimeZone: dueTimeZoneId,
-                    isAllDay: dateInfo?.isAllDay ?? false,  // false if no date
+                    dueDate: dueDate?.date,
+                    dueTimeZone: dueDate?.timeZoneIdentifier,
+                    isAllDay: dueDate?.isAllDay ?? false,
                     priority: try requirePriority(itemObj["priority"]?.stringValue),
-                    recurrenceRule: recurrenceRule,
-                    location: itemObj["location"]?.stringValue,
-                    url: try parseURL(itemObj["url"]),
-                    startDate: startDateInfo?.date,
-                    startTimeZone: startTimeZoneId,
-                    isStartAllDay: startDateInfo?.isAllDay ?? false,
-                    alarms: createAlarms
+                    recurrenceRule: try parseRecurrenceField(itemObj).setValue,
+                    url: try parseURLField(itemObj).setValue,
+                    startDate: startDate?.date,
+                    startTimeZone: startDate?.timeZoneIdentifier,
+                    isStartAllDay: startDate?.isAllDay ?? false,
+                    alarms: try parseAlarmsField(itemObj).setValue,
+                    done: itemObj["done"]?.boolValue ?? false
                 )
                 let reminder = try await reminderService.createReminder(request)
                 createdReminders.append(reminder)
@@ -349,7 +320,7 @@ private func handleWriteReminders(
     // 3. Format output
     let text = formatWriteResult(
         deleted: deletedReminders,
-        deleteTotal: deleteIds.count,
+        deleteTotal: deleteArray.count,
         created: createdReminders,
         updated: updatedReminders,
         failures: failures
@@ -385,10 +356,10 @@ private func formatWriteResult(
     if !updated.isEmpty {
         summaryParts.append("Updated \(updated.count)")
     }
-    if summaryParts.isEmpty && failures.isEmpty {
+    if summaryParts.isEmpty {
         summaryParts.append("No changes made")
     }
-    lines.append(summaryParts.joined(separator: ". ") + (summaryParts.isEmpty ? "" : "."))
+    lines.append(summaryParts.joined(separator: ". ") + ".")
 
     for (heading, reminders) in [("Deleted:", deleted), ("Created:", created), ("Updated:", updated)]
     where !reminders.isEmpty {
@@ -416,16 +387,16 @@ private func handleManageReminderList(
     reminderService: ReminderServiceProtocol
 ) async throws -> CallTool.Result {
     guard let actionValue = arguments?["action"]?.stringValue else {
-        return .missingParameter("action")
+        throw ParseError.missingParameter("action", action: nil)
     }
     guard let action = ReminderListAction(rawValue: actionValue) else {
-        return .invalidParameter("action", value: actionValue, expected: "Use 'create' or 'delete'")
+        throw ParseError.invalidParameter("action", value: actionValue, expected: "Use 'create' or 'delete'")
     }
 
     switch action {
     case .create:
         guard let title = arguments?["title"]?.stringValue else {
-            return .missingParameter("title", for: "create")
+            throw ParseError.missingParameter("title", action: "create")
         }
         let request = CreateListRequest(
             title: title,
@@ -434,17 +405,17 @@ private func handleManageReminderList(
         let list = try await reminderService.createList(request)
         return try .success(
             "Created reminder list:\n\(formatList(list))",
-            structuredContent: ManageReminderListOutput(action: action.rawValue, id: list.id, list: list.output)
+            structuredContent: ManageReminderListOutput(action: action, id: list.id, list: list.output)
         )
 
     case .delete:
         guard let id = arguments?["id"]?.stringValue else {
-            return .missingParameter("id", for: "delete")
+            throw ParseError.missingParameter("id", action: "delete")
         }
         try await reminderService.deleteList(id: id)
         return try .success(
             "Deleted reminder list: \(id)",
-            structuredContent: ManageReminderListOutput(action: action.rawValue, id: id, list: nil)
+            structuredContent: ManageReminderListOutput(action: action, id: id, list: nil)
         )
     }
 }

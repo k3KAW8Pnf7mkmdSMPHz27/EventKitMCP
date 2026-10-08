@@ -14,7 +14,7 @@ extension ReminderModel {
             title: title,
             notes: notes,
             done: done,
-            priority: priority.displayName.lowercased(),
+            priority: ReminderPriorityInput(priority),
             dueDate: dueDate.map(formatISO8601),
             dueTimeZone: dueTimeZone,
             isAllDay: isAllDay,
@@ -23,7 +23,6 @@ extension ReminderModel {
             listName: listName,
             recurrence: recurrenceRule,
             url: url,
-            location: location,
             startDate: startDate.map(formatISO8601),
             startTimeZone: startTimeZone,
             isStartAllDay: isStartAllDay,
@@ -36,18 +35,29 @@ private extension ReminderAlarmModel {
     var output: AlarmOutput {
         switch self {
         case .relative(let minutesBefore):
-            AlarmOutput(kind: kind.rawValue, minutesBefore: minutesBefore)
+            AlarmOutput(kind: .relative, minutesBefore: minutesBefore)
         case .absolute(let date):
-            AlarmOutput(kind: kind.rawValue, absoluteDate: formatISO8601(date))
+            AlarmOutput(kind: .absolute, absoluteDate: formatISO8601(date))
         case .location(let location, let proximity):
             AlarmOutput(
-                kind: kind.rawValue,
+                kind: .location,
                 proximity: proximity.rawValue,
                 title: location.title,
                 latitude: location.latitude,
                 longitude: location.longitude,
                 radius: location.radius
             )
+        }
+    }
+}
+
+extension ReminderPriorityInput {
+    init(_ priority: ReminderPriority) {
+        switch priority {
+        case .none: self = .none
+        case .low: self = .low
+        case .medium: self = .medium
+        case .high: self = .high
         }
     }
 }
@@ -118,15 +128,11 @@ private func formatReminder(_ reminder: ReminderModel) -> String {
         lines.append("  URL: \(url)")
     }
 
-    if let location = reminder.location, !location.isEmpty {
-        lines.append("  Location: \(location)")
-    }
-
     if let alarms = reminder.alarms, !alarms.isEmpty {
         let alarmStrs = alarms.map { alarm -> String in
             switch alarm {
             case .relative(let minutes):
-                return minutes == 0 ? "at start" : "\(minutes) min before start"
+                return minutes == 0 ? "at due time" : "\(minutes) min before due"
             case .absolute(let date):
                 return "at \(formatDateTime(date))"
             case .location(let location, let proximity):

@@ -73,7 +73,6 @@ struct ReminderServiceWriteTests {
                 dueTimeZone: "Asia/Tokyo",
                 priority: .high,
                 recurrenceRule: "FREQ=WEEKLY",
-                location: "Office",
                 url: "https://example.com/a",
                 startDate: Self.instant,
                 startTimeZone: "Asia/Tokyo",
@@ -87,7 +86,6 @@ struct ReminderServiceWriteTests {
         #expect(saved.title == "New")
         #expect(saved.notes == "Bring slides")
         #expect(saved.priority == ReminderPriority.high.rawValue)
-        #expect(saved.location == "Office")
         #expect(saved.url?.absoluteString == "https://example.com/a")
         #expect(saved.recurrenceRules?.map(RRuleParser.format) == ["FREQ=WEEKLY"])
         #expect(sameAlarms(saved.alarms, [.relative(minutesBefore: 10), .absolute(Self.instant)]))
@@ -133,6 +131,14 @@ struct ReminderServiceWriteTests {
         #expect(flattened.hour == nil)
     }
 
+    @Test("Create can start a reminder completed")
+    func createCompleted() async throws {
+        let f = Self.fixture()
+        let model = try await f.service.createReminder(CreateReminderRequest(title: "Done", done: true))
+        #expect(model.done)
+        #expect(try #require(f.store.saved.last).isCompleted)
+    }
+
     @Test("Create without a list uses the default list")
     func createUsesDefaultList() async throws {
         let f = Self.fixture()
@@ -155,23 +161,25 @@ struct ReminderServiceWriteTests {
         }
     }
 
-    @Test("Create refuses a default list outside the allowlist and names it")
+    @Test("Create refuses a default list outside the allowlist without naming it")
     func createHiddenDefaultList() async throws {
         let f = Self.fixture(defaultToHome: true) { work, _ in [work] }
-        await #expect(throws: ReminderServiceError.listAccessDenied(f.homeId)) {
+        await #expect(throws: ReminderServiceError.defaultListNotAllowed) {
             try await f.service.createReminder(CreateReminderRequest(title: "x"))
         }
         #expect(f.store.saved.isEmpty)
     }
 
-    @Test("Create refuses a relative alarm without a start date and saves nothing")
-    func createRelativeAlarmNeedsStart() async throws {
-        let f = Self.fixture()
-        await #expect(throws: ReminderServiceError.relativeAlarmRequiresStartDate) {
-            try await f.service.createReminder(
-                CreateReminderRequest(title: "x", alarms: [.relative(minutesBefore: 5)]))
+    @Test("Create refuses a relative alarm without a due date, even with a start date, and saves nothing")
+    func createRelativeAlarmNeedsDue() async throws {
+        for startDate in [nil, Self.instant] {
+            let f = Self.fixture()
+            await #expect(throws: ReminderServiceError.relativeAlarmRequiresDueDate) {
+                try await f.service.createReminder(
+                    CreateReminderRequest(title: "x", startDate: startDate, alarms: [.relative(minutesBefore: 5)]))
+            }
+            #expect(f.store.saved.isEmpty)
         }
-        #expect(f.store.saved.isEmpty)
     }
 
     // MARK: - Update
@@ -187,7 +195,6 @@ struct ReminderServiceWriteTests {
                 notes: .set("n"),
                 dueDate: .set(ReminderDateValue(date: Self.instant, timeZoneIdentifier: "Asia/Tokyo", isAllDay: false)),
                 recurrenceRule: .set("FREQ=DAILY"),
-                location: .set("Office"),
                 url: .set("https://example.com"),
                 startDate: .set(
                     ReminderDateValue(date: Self.instant, timeZoneIdentifier: "Asia/Tokyo", isAllDay: true)),
@@ -196,7 +203,6 @@ struct ReminderServiceWriteTests {
         #expect(reminder.notes == "n")
         #expect(reminder.startDateComponents?.timeZone?.identifier == "Asia/Tokyo")
         #expect(reminder.startDateComponents?.day == 6 && reminder.startDateComponents?.hour == nil)
-        #expect(reminder.location == "Office")
         #expect(reminder.url?.absoluteString == "https://example.com")
 
         _ = try await f.service.updateReminder(
@@ -210,23 +216,23 @@ struct ReminderServiceWriteTests {
 
         _ = try await f.service.updateReminder(UpdateReminderRequest(id: f.existingId, title: "Renamed"))
         #expect(reminder.title == "Renamed")
-        #expect(reminder.notes == "n" && reminder.location == "Office" && reminder.url != nil)
+        #expect(reminder.notes == "n" && reminder.url != nil)
         #expect(reminder.dueDateComponents != nil && reminder.startDateComponents != nil)
         #expect(reminder.recurrenceRules?.count == 1 && reminder.alarms?.count == 2)
 
         _ = try await f.service.updateReminder(
             UpdateReminderRequest(
-                id: f.existingId, notes: .clear, dueDate: .clear, recurrenceRule: .clear, location: .clear,
+                id: f.existingId, notes: .clear, dueDate: .clear, recurrenceRule: .clear,
                 url: .clear, startDate: .clear, alarms: .clear
             ))
-        #expect(reminder.notes == nil && reminder.location == nil && reminder.url == nil)
+        #expect(reminder.notes == nil && reminder.url == nil)
         #expect(reminder.dueDateComponents == nil && reminder.startDateComponents == nil)
         #expect((reminder.recurrenceRules ?? []).isEmpty && (reminder.alarms ?? []).isEmpty)
         #expect(f.store.saved.count == 4)
     }
 
     // EventKit stamps the completion date, in whole seconds, every time the flag is set,
-    // even on a reminder already done. So a second `done: true` moves it.
+    // even on a reminder already done, so the service writes the flag only on a change.
     @Test("Completing stamps a completion date and reopening clears it")
     func completionDate() async throws {
         let f = Self.fixture()
@@ -241,22 +247,53 @@ struct ReminderServiceWriteTests {
         #expect(reminder.completionDate == nil)
     }
 
-    @Test("Update applies the start date before validating relative alarms")
-    func startDateBeforeAlarms() async throws {
+    @Test("Marking a done reminder done again keeps its completion date")
+    func repeatedDoneKeepsCompletionDate() async throws {
+        let f = Self.fixture()
+        let reminder = try f.reminder(f.existingId)
+        reminder.isCompleted = true
+        reminder.completionDate = Self.instant
+
+        _ = try await f.service.updateReminder(UpdateReminderRequest(id: f.existingId, done: true))
+        #expect(reminder.isCompleted)
+        #expect(reminder.completionDate == Self.instant)
+    }
+
+    @Test("Update applies the due date before validating relative alarms")
+    func dueDateBeforeAlarms() async throws {
         let f = Self.fixture()
         _ = try await f.service.updateReminder(
             UpdateReminderRequest(
                 id: f.existingId,
-                startDate: .set(ReminderDateValue(date: Self.instant, isAllDay: false)),
+                dueDate: .set(ReminderDateValue(date: Self.instant, isAllDay: false)),
                 alarms: .set([.relative(minutesBefore: 5)])
             ))
         #expect(try f.reminder(f.existingId).alarms?.count == 1)
 
-        await #expect(throws: ReminderServiceError.relativeAlarmRequiresStartDate) {
+        await #expect(throws: ReminderServiceError.relativeAlarmRequiresDueDate) {
             try await f.service.updateReminder(
-                UpdateReminderRequest(id: f.existingId, startDate: .clear, alarms: .set([.relative(minutesBefore: 5)])))
+                UpdateReminderRequest(id: f.existingId, dueDate: .clear, alarms: .set([.relative(minutesBefore: 5)])))
         }
         #expect(f.store.saved.count == 1)
+    }
+
+    @Test("Clearing the due date is refused while relative alarms stay, and allowed once they go")
+    func dueDateClearKeepsAlarmsValid() async throws {
+        let f = Self.fixture()
+        let due = ReminderDateValue(date: Self.instant, isAllDay: false)
+        _ = try await f.service.updateReminder(
+            UpdateReminderRequest(id: f.existingId, dueDate: .set(due), alarms: .set([.relative(minutesBefore: 5)])))
+
+        await #expect(throws: ReminderServiceError.relativeAlarmRequiresDueDate) {
+            try await f.service.updateReminder(UpdateReminderRequest(id: f.existingId, dueDate: .clear))
+        }
+        #expect(f.store.saved.count == 1)
+        #expect(try f.reminder(f.existingId).dueDateComponents != nil)
+
+        _ = try await f.service.updateReminder(
+            UpdateReminderRequest(id: f.existingId, alarms: .set([.absolute(Self.instant)])))
+        _ = try await f.service.updateReminder(UpdateReminderRequest(id: f.existingId, dueDate: .clear))
+        #expect(try f.reminder(f.existingId).dueDateComponents == nil)
     }
 
     @Test("Moving a reminder checks the allowlist before looking the target list up")
@@ -279,13 +316,9 @@ struct ReminderServiceWriteTests {
 
     // MARK: - Hidden and missing reminders
 
-    @Test("A reminder in a hidden list reads, updates and deletes like a missing one")
+    @Test("A reminder in a hidden list updates and deletes like a missing one")
     func hiddenReminderLooksMissing() async throws {
         let f = Self.fixture { work, _ in [work] }
-
-        #expect(try await f.service.getReminder(id: f.hiddenId) == nil)
-        #expect(try await f.service.getReminder(id: "missing") == nil)
-        #expect(try await f.service.getReminder(id: f.existingId)?.title == "Existing")
 
         await #expect(throws: ReminderServiceError.reminderAccessDenied(f.hiddenId)) {
             try await f.service.updateReminder(UpdateReminderRequest(id: f.hiddenId, title: "x"))
@@ -313,7 +346,6 @@ struct ReminderServiceWriteTests {
         #expect(model.title == "Existing")
         #expect(model.listId == f.workId)
         #expect(f.store.removed.map(\.calendarItemIdentifier) == [f.existingId])
-        #expect(try await f.service.getReminder(id: f.existingId) == nil)
     }
 
     // MARK: - Lists

@@ -65,6 +65,29 @@ struct ToolSchemaContractTests {
         }
     }
 
+    @Test("Every refusal is an error result whose text starts with 'Error: '")
+    func refusalsShareOneShape() async {
+        let refusals: [(name: String, arguments: [String: Value]?, readOnly: Bool)] = [
+            ("write_reminders", ["delete": .array([.string("r1")])], true),
+            ("no_such_tool", nil, false),
+            ("write_reminders", [:], false),
+            ("write_reminders", ["delete": .array((0...100).map { .string("r\($0)") })], false),
+            ("manage_reminder_list", nil, false),
+            ("manage_reminder_list", ["action": .string("update")], false),
+            ("manage_reminder_list", ["action": .string("create")], false),
+            ("manage_reminder_list", ["action": .string("delete")], false),
+            ("query_reminders", ["filter": .string("weekly")], false)
+        ]
+        for refusal in refusals {
+            let result = await callTool(refusal.name, arguments: refusal.arguments, readOnly: refusal.readOnly)
+            #expect(result.isError == true, "\(refusal.name)")
+            #expect(
+                result.textContent?.hasPrefix("Error: ") == true,
+                "\(refusal.name): \(result.textContent ?? "nil")"
+            )
+        }
+    }
+
     @Test("Read-only registry exposes only query, lists, and overview")
     func readOnlyTools() {
         #expect(
@@ -168,7 +191,7 @@ struct ToolSchemaContractTests {
                     "upsert": .array([
                         .object([
                             "title": .string("Call the office"),
-                            "startDate": .string("2026-09-04T14:00:00-05:00"),
+                            "dueDate": .string("2026-09-04T14:00:00-05:00"),
                             "alarms": .array([
                                 .object([
                                     "kind": .string("relative"),
@@ -178,6 +201,17 @@ struct ToolSchemaContractTests {
                         ])
                     ])
                 ]), against: write.inputSchema))
+        let cleared = ["notes", "dueDate", "startDate", "recurrence", "url", "alarms"]
+        #expect(
+            try validates(
+                .object([
+                    "upsert": .array([
+                        .object(
+                            Dictionary(uniqueKeysWithValues: cleared.map { ($0, Value.null) })
+                                .merging(["id": .string("rem-1")]) { $1 })
+                    ])
+                ]), against: write.inputSchema),
+            "Every clearable field must advertise null")
         #expect(
             try validates(
                 .object([

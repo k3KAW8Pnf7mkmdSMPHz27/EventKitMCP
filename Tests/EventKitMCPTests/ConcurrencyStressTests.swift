@@ -49,13 +49,11 @@ private actor ConcurrentReminderService: ReminderServiceProtocol {
 
     func requestAccess() async throws -> Bool { true }
     func getLists() async throws -> [ReminderListModel] { [] }
-    func getList(id: String) async throws -> ReminderListModel? { nil }
     func createList(_ request: CreateListRequest) async throws -> ReminderListModel { throw StressError.unsupported }
     func deleteList(id: String) async throws { throw StressError.unsupported }
     func getReminders(listId: String?, includeDone: Bool) async throws -> [ReminderModel] {
         includeDone ? reminders : reminders.filter { !$0.done }
     }
-    func getReminder(id: String) async throws -> ReminderModel? { reminders.first { $0.id == id } }
     func createReminder(_ request: CreateReminderRequest) async throws -> ReminderModel {
         let reminder = ReminderModel(
             id: UUID().uuidString,

@@ -6,14 +6,14 @@ only_rules:
   - function_body_length
   - cyclomatic_complexity
 file_length:
-  warning: 658
-  error: 658
+  warning: 631
+  error: 631
 type_body_length:
-  warning: 423
-  error: 423
+  warning: 357
+  error: 357
 function_body_length:
-  warning: 119
-  error: 119
+  warning: 105
+  error: 105
 cyclomatic_complexity:
   warning: 17
   error: 17
