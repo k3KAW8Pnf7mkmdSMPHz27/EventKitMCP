@@ -30,7 +30,10 @@ struct ToolSchemaContractTests {
                         proximity: .enter
                     )
                 ]
-            )
+            ),
+            // Fills the overview's upcoming and attention sections, so their schemas are exercised too.
+            TestFixtures.reminder(id: "contract-upcoming", title: "Upcoming", dueDate: TestFixtures.in3Days),
+            TestFixtures.reminder(id: "contract-attention", title: "Attention", priority: .high)
         ]
 
         let tools = ToolRegistry.allTools()

@@ -109,7 +109,7 @@ already-authorized Reminders tool surface.
 | `write_reminders` | Create, update, or delete reminders. Uses `upsert` array (no id = create, with id = update) and `delete` array for IDs to remove |
 | `get_reminder_lists` | Get all reminder lists |
 | `manage_reminder_list` | Create or delete reminder lists (action='create' with title and optional hex color, or action='delete' with id) |
-| `overview` | Get a concise dashboard: date/timezone, counts, lists, overdue/today/upcoming reminders |
+| `overview` | Get a concise dashboard: date/timezone, counts, lists, overdue/today/upcoming reminders; the structured output carries the same sections |
 
 ## Tool Examples
 
