@@ -1,7 +1,8 @@
 # Smoke test
 
-Last run: 2026-10-07 on macOS 26.6.2, a `0.0.0-dev` build of the v3.0.0 branch (#26).
-Steps 2 and 11 were not run.
+Last run: 2026-10-07 on macOS 26.6.2, a `0.0.0-dev` build of the v3.0.0 branch (#26). Steps 1, 3
+and 11 ran again on 2026-10-08 against the Homebrew build of 3.1.0, from Claude Desktop for
+step 11. Step 2 was not run.
 
 These steps need a real Reminders database, so no test or CI job can run them. Run them
 before merging a change to the write path, the allowlist or the release build, and
