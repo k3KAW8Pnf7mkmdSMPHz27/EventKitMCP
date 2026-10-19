@@ -1,5 +1,5 @@
 {
-  "originHash" : "c367942435dc159a5b3a158e60236a7518b43e5fd894d3e42144c3b231c1e2c4",
+  "originHash" : "9b6bd49389d886febf08c343f51a90c80ec7ad4588db673fffa438f3ebe528cd",
   "pins" : [
     {
       "identity" : "eventsource",
@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/ajevans99/swift-json-schema.git",
       "state" : {
-        "revision" : "1514dd27fd55dbd36eec40c60e40ac8bfe0a22f4",
-        "version" : "0.14.1"
+        "revision" : "121b469bcd1981d82e601d225032799143215692",
+        "version" : "0.14.2"
       }
     },
     {
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
-        "revision" : "9c6fb14227f55d8f711ce3847dc2f419fb0ecacb",
-        "version" : "1.15.1"
+        "revision" : "4038b6a4f74a1426f47eb1dd5b4bb5628a15d597",
+        "version" : "1.16.1"
       }
     },
     {
