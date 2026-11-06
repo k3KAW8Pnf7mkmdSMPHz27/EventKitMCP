@@ -2,16 +2,23 @@
 
 A fast, native [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for **Apple Reminders** on macOS, built in Swift using Apple's EventKit framework and the [official MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk).
 
-Connect Claude Desktop, Cursor, Windsurf, or any MCP-compatible AI assistant directly to your Apple Reminders with full fidelity, near-instant native execution, and granular list-level security.
+Connect Claude Desktop, Cursor, Windsurf, or any MCP-compatible AI assistant directly to your Apple Reminders with direct, in-process EventKit integration and granular list-level security.
+
+This server allows AI assistants to:
+
+- List, create, update, and delete reminders
+- Manage reminder lists (calendars)
+- Search and filter reminders (overdue, today, upcoming, or regex search)
+- Inspect an overview dashboard of current tasks and lists
 
 ## Why Native EventKit?
 
-Unlike Node.js or Python MCP servers that drive Reminders through AppleScript or JXA (JavaScript for Automation), this server interacts directly with macOS system APIs via EventKit:
+Unlike servers that drive Reminders through AppleScript or JXA (JavaScript for Automation), this server interacts directly with macOS system APIs via EventKit:
 
-- ⚡ **Zero-Overhead Performance:** Direct native Swift calls avoid the multi-second execution delays and process spawning overhead of AppleScript.
-- 🔒 **Security & Scoping:** Restrict AI access to specific reminder lists (`--allowed-lists`) or run in `--read-only` mode to prevent accidental modifications to personal reminders.
-- 📍 **Full Reminders Fidelity:** Native support for geofence and location alarms, RFC 5545 recurrence rules, exact IANA timezones, URLs, priority levels, and notes.
-- 📄 **Context-Safe Pagination:** Paginated queries (`limit`, `offset`) and regex filtering ensure large task databases never overwhelm the AI model's context window.
+- **In-Process Execution:** Communicates directly with EventKit in-process, avoiding the latency and overhead of spawning AppleScript/JXA helper processes for each request.
+- **Security & Scoping:** Restrict AI access to specific reminder lists (`--allowed-lists`) or run in `--read-only` mode to prevent accidental modifications to personal reminders.
+- **Comprehensive Reminders Feature Support:** Native support for geofence and location alarms, RFC 5545 recurrence rules, exact IANA timezones, URLs, priority levels, and notes.
+- **Context-Safe Pagination:** Paginated queries (`limit`, `offset`) and regex filtering ensure large task databases never overwhelm the AI model's context window.
 
 > **Scope:** Apple Reminders only. Calendar events are not currently supported, despite EventKit covering both.
 
@@ -63,6 +70,8 @@ swift run eventkit-mcp-server
 ```
 
 ## Configuration
+
+> **Server Key:** The server key (e.g., `"apple-reminders"`) is arbitrary and client-side only. If you previously configured this server using `"eventkit"`, you can continue using `"eventkit"` to preserve any existing client-side tool permission rules.
 
 ### Claude Desktop
 
@@ -131,7 +140,7 @@ Add to your Windsurf configuration (`~/.codeium/windsurf/mcp_config.json`) or an
 }
 ```
 
-> **Binary Path Note:** The snippets above use the Apple Silicon Homebrew default (`/opt/homebrew/bin/eventkit-mcp-server`). On Intel Macs, the path is `/usr/local/bin/eventkit-mcp-server`. Run `which eventkit-mcp-server` to confirm your local path. If building from source, use `.build/release/eventkit-mcp-server`.
+> **Binary Path Note:** The snippets above use the Apple Silicon Homebrew default (`/opt/homebrew/bin/eventkit-mcp-server`). On Intel Macs, the default Homebrew path is `/usr/local/bin/eventkit-mcp-server`. Run `which eventkit-mcp-server` to confirm your local path. If building from source, specify an absolute path to the binary (e.g., `/path/to/EventKitMCP/.build/release/eventkit-mcp-server`), as GUI clients do not run from your project directory.
 
 ### Permissions
 
