@@ -2,7 +2,7 @@
 
 A fast, native [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for **Apple Reminders** on macOS, built in Swift using Apple's EventKit framework and the [official MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk).
 
-Connect Claude Desktop, Cursor, Windsurf, or any MCP-compatible AI assistant directly to your Apple Reminders with full fidelity, sub-millisecond execution, and granular list-level security.
+Connect Claude Desktop, Cursor, Windsurf, or any MCP-compatible AI assistant directly to your Apple Reminders with full fidelity, near-instant native execution, and granular list-level security.
 
 ## Why Native EventKit?
 
@@ -105,6 +105,18 @@ Add to your Cursor MCP settings (`~/.cursor/mcp.json` or project-level `.cursor/
 }
 ```
 
+### Claude Code CLI
+
+For [Claude Code](https://claude.ai/code), add the server directly from your terminal:
+
+```bash
+# Add globally for all projects
+claude mcp add --scope user apple-reminders -- /opt/homebrew/bin/eventkit-mcp-server
+
+# Or with list restrictions
+claude mcp add --scope user apple-reminders -- /opt/homebrew/bin/eventkit-mcp-server --allowed-lists "list-id-1,list-id-2"
+```
+
 ### Windsurf & Other MCP Clients
 
 Add to your Windsurf configuration (`~/.codeium/windsurf/mcp_config.json`) or any client using standard stdio MCP configuration:
@@ -119,7 +131,7 @@ Add to your Windsurf configuration (`~/.codeium/windsurf/mcp_config.json`) or an
 }
 ```
 
-*(If you built from source instead of Homebrew, replace `/opt/homebrew/bin/eventkit-mcp-server` with the path to `.build/release/eventkit-mcp-server`.)*
+> **Binary Path Note:** The snippets above use the Apple Silicon Homebrew default (`/opt/homebrew/bin/eventkit-mcp-server`). On Intel Macs, the path is `/usr/local/bin/eventkit-mcp-server`. Run `which eventkit-mcp-server` to confirm your local path. If building from source, use `.build/release/eventkit-mcp-server`.
 
 ### Permissions
 
