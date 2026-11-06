@@ -1,6 +1,6 @@
 # Apple Reminders MCP Server (EventKit)
 
-A fast, native [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for **Apple Reminders** on macOS, built in Swift using Apple's EventKit framework and the [official MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk).
+A native [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for **Apple Reminders** on macOS, built in Swift using Apple's EventKit framework and the [official MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk).
 
 Connect Claude Desktop, Cursor, Windsurf, or any MCP-compatible AI assistant directly to your Apple Reminders with direct, in-process EventKit integration and granular list-level security.
 
@@ -18,7 +18,7 @@ Unlike servers that drive Reminders through AppleScript or JXA (JavaScript for A
 - **In-Process Execution:** Communicates directly with EventKit in-process, avoiding the latency and overhead of spawning AppleScript/JXA helper processes for each request.
 - **Security & Scoping:** Restrict AI access to specific reminder lists (`--allowed-lists`) or run in `--read-only` mode to prevent accidental modifications to personal reminders.
 - **Comprehensive Reminders Feature Support:** Native support for geofence and location alarms, RFC 5545 recurrence rules, exact IANA timezones, URLs, priority levels, and notes.
-- **Context-Safe Pagination:** Paginated queries (`limit`, `offset`) and regex filtering ensure large task databases never overwhelm the AI model's context window.
+- **Bounded Pagination:** Paginated queries (`limit`, `offset`) and regex filtering help keep responses bounded within the model's context window.
 
 > **Scope:** Apple Reminders only. Calendar events are not currently supported, despite EventKit covering both.
 
