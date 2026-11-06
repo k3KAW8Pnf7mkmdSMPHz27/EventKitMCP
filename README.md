@@ -1,18 +1,19 @@
-# EventKit MCP Server
+# Apple Reminders MCP Server (EventKit)
 
-A Swift-based [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes Apple Reminders via the EventKit framework. Built using the [official MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk).
+A fast, native [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for **Apple Reminders** on macOS, built in Swift using Apple's EventKit framework and the [official MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk).
 
-## Overview
+Connect Claude Desktop, Cursor, Windsurf, or any MCP-compatible AI assistant directly to your Apple Reminders with full fidelity, sub-millisecond execution, and granular list-level security.
 
-This MCP server allows AI assistants to interact with Apple Reminders, enabling them to:
+## Why Native EventKit?
 
-- List, create, update, and delete reminders
-- Manage reminder lists (calendars)
-- Search reminders by content
-- Filter reminders (overdue, today, upcoming)
-- Restrict access to specific lists for security
+Unlike Node.js or Python MCP servers that drive Reminders through AppleScript or JXA (JavaScript for Automation), this server interacts directly with macOS system APIs via EventKit:
 
-> **Scope:** Reminders only. Calendar events are not currently supported, despite EventKit covering both.
+- ⚡ **Zero-Overhead Performance:** Direct native Swift calls avoid the multi-second execution delays and process spawning overhead of AppleScript.
+- 🔒 **Security & Scoping:** Restrict AI access to specific reminder lists (`--allowed-lists`) or run in `--read-only` mode to prevent accidental modifications to personal reminders.
+- 📍 **Full Reminders Fidelity:** Native support for geofence and location alarms, RFC 5545 recurrence rules, exact IANA timezones, URLs, priority levels, and notes.
+- 📄 **Context-Safe Pagination:** Paginated queries (`limit`, `offset`) and regex filtering ensure large task databases never overwhelm the AI model's context window.
+
+> **Scope:** Apple Reminders only. Calendar events are not currently supported, despite EventKit covering both.
 
 ## Requirements
 
@@ -24,7 +25,7 @@ This MCP server allows AI assistants to interact with Apple Reminders, enabling 
 
 ### Using Homebrew (Recommended)
 
-The easiest way to install EventKit MCP Server is via Homebrew:
+The easiest way to install the Apple Reminders MCP Server is via Homebrew:
 
 ```bash
 brew install k3KAW8Pnf7mkmdSMPHz27/mcp/eventkit-mcp-server
@@ -70,7 +71,7 @@ Add this to your Claude Desktop configuration file (`~/Library/Application Suppo
 ```json
 {
   "mcpServers": {
-    "eventkit": {
+    "apple-reminders": {
       "command": "/opt/homebrew/bin/eventkit-mcp-server"
     }
   }
@@ -82,13 +83,43 @@ With list restrictions:
 ```json
 {
   "mcpServers": {
-    "eventkit": {
+    "apple-reminders": {
       "command": "/opt/homebrew/bin/eventkit-mcp-server",
       "args": ["--allowed-lists", "list-id-1,list-id-2"]
     }
   }
 }
 ```
+
+### Cursor
+
+Add to your Cursor MCP settings (`~/.cursor/mcp.json` or project-level `.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "apple-reminders": {
+      "command": "/opt/homebrew/bin/eventkit-mcp-server"
+    }
+  }
+}
+```
+
+### Windsurf & Other MCP Clients
+
+Add to your Windsurf configuration (`~/.codeium/windsurf/mcp_config.json`) or any client using standard stdio MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "apple-reminders": {
+      "command": "/opt/homebrew/bin/eventkit-mcp-server"
+    }
+  }
+}
+```
+
+*(If you built from source instead of Homebrew, replace `/opt/homebrew/bin/eventkit-mcp-server` with the path to `.build/release/eventkit-mcp-server`.)*
 
 ### Permissions
 
